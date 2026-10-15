@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7f7f3">
+    <meta name="description" content="水集，一个用于模拟创作、分享与互动的灵感社区。">
+    <title>水集 · 创作社区</title>
+    <link rel="preconnect" href="https://copilot-cn.bytedance.net">
+    <link rel="stylesheet" href="/styles.css">
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
+    <script src="/app.js" defer></script>
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" href="#" aria-label="返回水集首页">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        <span>水集</span>
+    </a>
+
+    <nav class="tabs" aria-label="主要页面">
+        <button class="tab is-active" type="button" data-view="users">选取用户</button>
+        <button class="tab" type="button" data-view="community">社区</button>
+        <button class="tab" type="button" data-view="profile">我</button>
+    </nav>
+
+    <div class="nav-actions">
+        <button class="icon-button mobile-publish" type="button" data-action="publish" aria-label="发布作品" title="发布作品">
+            <i data-lucide="plus"></i>
+        </button>
+        <button class="current-user" type="button" data-action="choose-user" aria-label="切换用户">
+            <span class="current-user-empty">选择用户</span>
+        </button>
+        <button class="publish-button" type="button" data-action="publish">
+            <i data-lucide="plus"></i>
+            <span>发布作品</span>
+        </button>
+    </div>
+</header>
+
+<main>
+    <section class="view is-active" id="view-users" aria-labelledby="hero-title">
+        <div class="hero" id="hero">
+            <div class="hero-shade"></div>
+            <div class="hero-content">
+                <p class="hero-kicker">A PLACE FOR EVERY SMALL IDEA</p>
+                <h1 id="hero-title">水集</h1>
+                <p class="hero-copy">让灵感被看见，让每一次表达都有回声。</p>
+                <button class="hero-cta" type="button" data-scroll-users>
+                    进入社区
+                    <i data-lucide="arrow-down"></i>
+                </button>
+            </div>
+            <p class="hero-index" aria-hidden="true">01 / 40</p>
+        </div>
+
+        <div class="users-section" id="users-section">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">DEMO IDENTITIES</p>
+                    <h2>今天，想成为谁？</h2>
+                </div>
+                <p class="section-note">十个视角，十种不同的日常。挑一个名字，从这里进入今天的灵感现场。</p>
+            </div>
+            <div class="users-grid" id="users-grid" aria-live="polite"></div>
+        </div>
+    </section>
+
+    <section class="view" id="view-community" aria-labelledby="community-title">
+        <div class="community-header">
+            <div>
+                <p class="eyebrow">COMMUNITY STREAM</p>
+                <h1 id="community-title">正在发生</h1>
+            </div>
+            <div class="segmented" role="group" aria-label="作品排序">
+                <button class="is-active" type="button" data-sort="latest">最新</button>
+                <button type="button" data-sort="popular">热门</button>
+            </div>
+        </div>
+        <div class="feed" id="project-feed" aria-live="polite"></div>
+    </section>
+
+    <section class="view" id="view-profile" aria-labelledby="profile-title">
+        <div id="profile-content"></div>
+    </section>
+</main>
+
+<dialog class="publish-dialog" id="publish-dialog">
+    <form method="dialog" class="dialog-shell" id="publish-form">
+        <header class="dialog-header">
+            <div>
+                <p class="eyebrow">NEW PROJECT</p>
+                <h2>发布一个作品</h2>
+            </div>
+            <button class="icon-button" type="button" data-close-dialog aria-label="关闭" title="关闭">
+                <i data-lucide="x"></i>
+            </button>
+        </header>
+
+        <div class="dialog-body">
+            <section class="asset-picker" aria-labelledby="asset-heading">
+                <div class="field-heading">
+                    <h3 id="asset-heading">选择画面</h3>
+                    <span id="asset-selection-label">尚未选择</span>
+                </div>
+                <div class="asset-grid" id="asset-grid"></div>
+            </section>
+
+            <aside class="publish-fields">
+                <div class="selected-preview" id="selected-preview">
+                    <span>从左侧选择一张图片</span>
+                </div>
+                <label class="field">
+                    <span>作品名称</span>
+                    <input id="project-name" name="name" type="text" maxlength="24" placeholder="留空将生成随机三字名称">
+                </label>
+                <label class="field">
+                    <span>一句话说明 <small>可选</small></span>
+                    <textarea id="project-description" name="description" maxlength="180" rows="4" placeholder="写下画面背后的想法"></textarea>
+                </label>
+                <button class="submit-button" id="publish-submit" type="submit">
+                    <span>确认发布</span>
+                    <i data-lucide="arrow-up-right"></i>
+                </button>
+            </aside>
+        </div>
+    </form>
+</dialog>
+
+<div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>
