@@ -37,3 +37,8 @@ build/
 .env.*
 !.env.example
 logs/
+
+### Generated image sources ###
+src/main/resources/static/generated/avatars/avatar-*.jpg
+src/main/resources/static/generated/landscapes/landscape-*.jpg
+src/main/resources/static/generated/hero.jpg

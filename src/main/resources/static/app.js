@@ -1,6 +1,3 @@
-const IMAGE_ENDPOINT = "https://copilot-cn.bytedance.net/api/ide/v1/tool_text_to_image";
-const HERO_PROMPT = "A vast contemporary coastal art museum built into dark green cliffs above a luminous silver sea, one bold vermilion walkway, tiny human silhouettes for scale, soft morning mist, sweeping cinematic wide angle architectural photography, crisp realistic details, sophisticated editorial color, no logos, no text";
-
 const state = {
     users: [],
     assets: [],
@@ -24,8 +21,13 @@ const elements = {
     toastRegion: document.querySelector("#toast-region")
 };
 
-function imageUrl(prompt, size) {
-    return `${IMAGE_ENDPOINT}?prompt=${encodeURIComponent(prompt)}&image_size=${size}`;
+function avatarUrl(user) {
+    const userId = user.userId || user.id;
+    return `/generated/avatars/optimized/avatar-${userId}.jpg`;
+}
+
+function assetUrl(asset) {
+    return `/generated/landscapes/optimized/landscape-${asset.id}.jpg`;
 }
 
 function escapeHtml(value = "") {
@@ -103,7 +105,7 @@ function updateCurrentUserControl() {
     const user = currentUser();
     document.querySelectorAll(".current-user").forEach((button) => {
         button.innerHTML = user
-            ? `<img src="${imageUrl(user.avatarPrompt, "square")}" alt="${escapeHtml(user.nickname)}的头像" data-fallback="${user.accentColor}">
+            ? `<img src="${avatarUrl(user)}" alt="${escapeHtml(user.nickname)}的头像" data-fallback="${user.accentColor}">
                <span>${escapeHtml(user.nickname)}</span>`
             : `<span class="current-user-empty">选择用户</span>`;
     });
@@ -138,7 +140,7 @@ function renderUsers() {
                 type="button"
                 data-select-user="${user.id}"
                 aria-label="选择用户${escapeHtml(user.nickname)}">
-            <img src="${imageUrl(user.avatarPrompt, "square_hd")}"
+            <img src="${avatarUrl(user)}"
                  alt="${escapeHtml(user.nickname)}的头像"
                  data-fallback="${user.accentColor}">
             <span class="user-card-row">
@@ -161,7 +163,7 @@ function renderAssets() {
                 type="button"
                 data-select-asset="${asset.id}"
                 aria-label="选择${escapeHtml(asset.title)}">
-            <img src="${imageUrl(asset.imagePrompt, "landscape_4_3")}"
+            <img src="${assetUrl(asset)}"
                  alt="${escapeHtml(asset.altText)}"
                  loading="lazy"
                  data-fallback="${asset.accentColor}">
@@ -194,9 +196,8 @@ function projectCard(project, index) {
         : "";
     const comments = project.recentComments.map((comment) => `
         <div class="comment-row">
-            <img src="${imageUrl(comment.avatarPrompt, "square")}"
+            <img src="${avatarUrl(comment)}"
                  alt=""
-                 loading="lazy"
                  data-fallback="${project.author.accentColor}">
             <p><strong>${escapeHtml(comment.nickname)}</strong>${escapeHtml(comment.content)}</p>
         </div>
@@ -206,7 +207,7 @@ function projectCard(project, index) {
         <article class="project-card" data-project-card="${project.id}">
             <div class="project-image-wrap" style="background:${project.asset.accentColor}">
                 <img class="project-image"
-                     src="${imageUrl(project.asset.imagePrompt, "landscape_4_3")}"
+                     src="${assetUrl(project.asset)}"
                      alt="${escapeHtml(project.asset.altText)}"
                      data-fallback="${project.asset.accentColor}">
                 <span class="project-number">${String(index + 1).padStart(2, "0")}</span>
@@ -215,7 +216,7 @@ function projectCard(project, index) {
                 <div class="author-row">
                     <div class="author-main">
                         <img class="avatar"
-                             src="${imageUrl(project.author.avatarPrompt, "square")}"
+                             src="${avatarUrl(project.author)}"
                              alt="${escapeHtml(project.author.nickname)}的头像"
                              loading="lazy"
                              data-fallback="${project.author.accentColor}">
@@ -285,7 +286,7 @@ function renderProfile() {
         ? `<div class="profile-grid">${profile.projects.map((project) => `
                 <article class="profile-project">
                     <div style="background:${project.asset.accentColor}">
-                        <img src="${imageUrl(project.asset.imagePrompt, "landscape_4_3")}"
+                        <img src="${assetUrl(project.asset)}"
                              alt="${escapeHtml(project.asset.altText)}"
                              data-fallback="${project.asset.accentColor}">
                     </div>
@@ -301,7 +302,7 @@ function renderProfile() {
         <div class="profile-shell">
             <div class="profile-intro">
                 <img class="profile-avatar"
-                     src="${imageUrl(profile.user.avatarPrompt, "square_hd")}"
+                     src="${avatarUrl(profile.user)}"
                      alt="${escapeHtml(profile.user.nickname)}的头像"
                      data-fallback="${profile.user.accentColor}">
                 <div class="profile-copy">
@@ -366,7 +367,7 @@ function selectAsset(assetId) {
     });
     elements.selectionLabel.textContent = `已选择 · ${asset.title}`;
     elements.selectedPreview.innerHTML = `
-        <img src="${imageUrl(asset.imagePrompt, "landscape_4_3")}"
+        <img src="${assetUrl(asset)}"
              alt="${escapeHtml(asset.altText)}"
              data-fallback="${asset.accentColor}">`;
     attachImageFallbacks(elements.selectedPreview);
@@ -578,7 +579,7 @@ elements.publishDialog.addEventListener("click", (event) => {
 });
 
 async function init() {
-    document.querySelector("#hero").style.backgroundImage = `url("${imageUrl(HERO_PROMPT, "landscape_16_9")}")`;
+    document.querySelector("#hero").style.backgroundImage = 'url("/generated/hero-optimized.jpg")';
     showLoading(elements.usersGrid, "正在准备人物…");
     try {
         [state.users, state.assets] = await Promise.all([
