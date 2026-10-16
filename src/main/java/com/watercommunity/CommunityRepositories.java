@@ -40,6 +40,8 @@ interface ProjectCommentRepository extends JpaRepository<ProjectComment, String>
     long countByProjectId(String projectId);
 
     List<ProjectComment> findTop2ByProjectIdOrderByCreatedAtDesc(String projectId);
+
+    Optional<ProjectComment> findByIdAndProjectId(String id, String projectId);
 }
 
 interface UserFollowRepository extends JpaRepository<UserFollow, String> {

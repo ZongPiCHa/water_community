@@ -303,4 +303,8 @@ class ProjectShare {
         this.user = user;
         this.createdAt = Instant.now();
     }
+
+    String getId() {
+        return id;
+    }
 }

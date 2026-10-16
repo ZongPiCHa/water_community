@@ -2,6 +2,7 @@ package com.watercommunity;
 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -73,6 +74,16 @@ class CommunityController {
             @Valid @RequestBody AddCommentRequest request
     ) {
         return communityService.comment(userId, projectId, request);
+    }
+
+    @DeleteMapping("/projects/{projectId}/comments/{commentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteComment(
+            @RequestHeader("X-User-Id") String userId,
+            @PathVariable String projectId,
+            @PathVariable String commentId
+    ) {
+        communityService.deleteComment(userId, projectId, commentId);
     }
 
     @PostMapping("/projects/{projectId}/shares")

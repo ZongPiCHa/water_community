@@ -221,6 +221,12 @@ function projectCard(project, index) {
                  alt=""
                  data-fallback="${project.author.accentColor}">
             <p><strong>${escapeHtml(comment.nickname)}</strong>${escapeHtml(comment.content)}</p>
+            ${state.currentUserId && (isOwn || comment.userId === state.currentUserId)
+                ? `<button class="comment-delete" type="button"
+                           data-delete-comment="${comment.id}"
+                           data-project-id="${project.id}"
+                           aria-label="删除评论" title="删除评论">删除</button>`
+                : ""}
         </div>
     `).join("");
 
@@ -457,6 +463,17 @@ async function shareProject(projectId, button) {
     }
 }
 
+async function deleteComment(projectId, commentId) {
+    if (!requireUser()) return;
+    try {
+        await api(`/api/projects/${projectId}/comments/${commentId}`, {method: "DELETE"});
+        await loadProjects();
+        toast("评论已删除");
+    } catch (error) {
+        toast(error.message, true);
+    }
+}
+
 async function submitComment(form) {
     if (!requireUser()) return;
     const input = form.elements.content;
@@ -557,6 +574,12 @@ document.addEventListener("click", (event) => {
     const shareButton = event.target.closest("[data-share-project]");
     if (shareButton) {
         shareProject(shareButton.dataset.shareProject, shareButton);
+        return;
+    }
+
+    const deleteCommentButton = event.target.closest("[data-delete-comment]");
+    if (deleteCommentButton) {
+        deleteComment(deleteCommentButton.dataset.projectId, deleteCommentButton.dataset.deleteComment);
         return;
     }
 

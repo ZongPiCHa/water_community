@@ -103,10 +103,6 @@ class CommunityService {
         String description = request.description() == null ? "" : request.description().strip();
 
         Project project = projectRepository.save(new Project(user, asset, name, description));
-        tracker.track("publish", user, Map.of(
-                "project_id", project.getId(),
-                "image_asset_id", asset.getId()
-        ));
         return toProjectResponse(project, userId);
     }
 
@@ -144,6 +140,24 @@ class CommunityService {
     }
 
     @Transactional
+    void deleteComment(String userId, String projectId, String commentId) {
+        CommunityUser user = requireUser(userId);
+        Project project = requireProject(projectId);
+        ProjectComment comment = commentRepository.findByIdAndProjectId(commentId, projectId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "评论不存在"));
+        String authorId = project.getUser().getId();
+        if (!userId.equals(comment.getUser().getId()) && !userId.equals(authorId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "只能删除自己的评论或自己作品下的评论");
+        }
+        commentRepository.delete(comment);
+        tracker.track("delete_comment", user, Map.of(
+                "project_id", projectId,
+                "comment_id", commentId,
+                "author_user_id", authorId
+        ));
+    }
+
+    @Transactional
     ActionResponse toggleFollow(String userId, String targetUserId) {
         if (userId.equals(targetUserId)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "不能关注自己");
@@ -157,9 +171,10 @@ class CommunityService {
             followRepository.save(new UserFollow(user, target));
         }
         long count = followRepository.countByFollowingId(targetUserId);
-        tracker.track(existing.isPresent() ? "unfollow" : "follow", user, Map.of(
-                "target_user_id", targetUserId
-        ));
+        // The water-box action list has no unfollow, so only new follows are reported.
+        if (existing.isEmpty()) {
+            tracker.track("follow", user, Map.of("target_user_id", targetUserId));
+        }
         return new ActionResponse(existing.isEmpty(), count, existing.isPresent() ? "已取消关注" : "已关注");
     }
 
@@ -167,7 +182,12 @@ class CommunityService {
     ActionResponse share(String userId, String projectId) {
         CommunityUser user = requireUser(userId);
         Project project = requireProject(projectId);
-        shareRepository.save(new ProjectShare(project, user));
+        ProjectShare share = shareRepository.save(new ProjectShare(project, user));
+        tracker.track("share", user, Map.of(
+                "project_id", projectId,
+                "share_id", share.getId(),
+                "author_user_id", project.getUser().getId()
+        ));
         return new ActionResponse(true, shareRepository.countByProjectId(projectId), "分享已记录");
     }
 

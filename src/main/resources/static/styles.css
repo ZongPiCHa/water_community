@@ -673,7 +673,7 @@ img {
 
 .comment-row {
     display: grid;
-    grid-template-columns: 22px 1fr;
+    grid-template-columns: 22px 1fr auto;
     gap: 7px;
     align-items: start;
 }
@@ -691,6 +691,19 @@ img {
     font-size: 10px;
     line-height: 1.55;
     word-break: break-word;
+}
+
+.comment-delete {
+    padding: 2px 0;
+    border: 0;
+    background: none;
+    color: #9a9d96;
+    font-size: 10px;
+    cursor: pointer;
+}
+
+.comment-delete:hover {
+    color: var(--accent);
 }
 
 .comment-row strong {

@@ -20,6 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -35,6 +37,9 @@ class WaterCommunityApplicationTests {
 
     @Autowired
     private CapturingWaterBoxSender sender;
+
+    @Autowired
+    private ProjectShareRepository shareRepository;
 
     @Test
     void seededCommunityCanBeRead() throws Exception {
@@ -127,6 +132,70 @@ class WaterCommunityApplicationTests {
         assertThat((String) like.get("span_id")).isNotBlank();
         assertThat(List.of(like.get("action"), sender.events.get(1).get("action")))
                 .containsExactlyInAnyOrder("like", "unlike");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void commentShareAndFollowActionsMatchWaterBoxActionList() throws Exception {
+        sender.events.clear();
+        String user = "u000000000000003";
+        String project = "p000000000000002";
+        TestTransaction.flagForCommit();
+        String body = mockMvc.perform(post("/api/projects/" + project + "/comments")
+                        .header("X-User-Id", user)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"埋点测试\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String commentId = body.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        mockMvc.perform(delete("/api/projects/" + project + "/comments/" + commentId).header("X-User-Id", user))
+                .andExpect(status().isNoContent());
+        String shareBody = mockMvc.perform(post("/api/projects/" + project + "/shares").header("X-User-Id", user))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        mockMvc.perform(post("/api/users/u000000000000002/follow").header("X-User-Id", user))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/users/u000000000000002/follow").header("X-User-Id", user))
+                .andExpect(status().isOk());
+        TestTransaction.end();
+
+        // Remove the committed share so other tests keep the seeded counts.
+        TestTransaction.start();
+        TestTransaction.flagForCommit();
+        shareRepository.findAll().stream()
+                .filter(share -> share.getId().equals(sender.events.stream()
+                        .filter(event -> "share".equals(event.get("action")))
+                        .map(event -> ((Map<?, ?>) event.get("properties")).get("share_id"))
+                        .findFirst().orElse(null)))
+                .forEach(shareRepository::delete);
+        TestTransaction.end();
+        TestTransaction.start();
+
+        // A forbidden delete marks the transaction rollback-only, so check it in the final rolled-back transaction.
+        String otherBody = mockMvc.perform(post("/api/projects/" + project + "/comments")
+                        .header("X-User-Id", user)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"权限测试\"}"))
+                .andReturn().getResponse().getContentAsString();
+        String otherId = otherBody.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        mockMvc.perform(delete("/api/projects/" + project + "/comments/" + otherId)
+                        .header("X-User-Id", "u000000000000005"))
+                .andExpect(status().isForbidden());
+
+        assertThat(shareBody).contains("分享已记录");
+        assertThat(sender.events).extracting(event -> event.get("action"))
+                .containsExactly("comment", "delete_comment", "share", "follow");
+        assertThat(sender.events.get(1)).containsEntry("properties", Map.of(
+                "project_id", project,
+                "comment_id", commentId,
+                "author_user_id", "u000000000000002"
+        ));
+        assertThat((Map<String, Object>) sender.events.get(2).get("properties"))
+                .containsEntry("project_id", project)
+                .containsEntry("author_user_id", "u000000000000002");
+        assertThat(sender.events).allSatisfy(event -> assertThat(List.of(
+                "like", "unlike", "comment", "delete_comment", "share", "follow"
+        )).contains((String) event.get("action")));
     }
 
     @TestConfiguration

@@ -57,10 +57,13 @@ Flyway 会自动创建表结构并写入演示数据。端口由 `.env.local` �
 
 | action | properties |
 | --- | --- |
-| `publish` | `project_id`、`image_asset_id` |
 | `like` / `unlike` | `project_id`、`author_user_id` |
 | `comment` | `project_id`、`comment_id`、`author_user_id` |
-| `follow` / `unfollow` | `target_user_id` |
+| `delete_comment` | `project_id`、`comment_id`、`author_user_id` |
+| `share` | `project_id`、`share_id`、`author_user_id` |
+| `follow` | `target_user_id` |
 
+上报 action 严格限定为 water-box 动作列表：`like`、`unlike`、`comment`、`delete_comment`、`share`、`follow`。取消关注和发布作品不上报。
+评论可由评论者本人或作品作者删除（`DELETE /api/projects/{projectId}/comments/{commentId}`）。
 `session_id` 来自前端 `X-Session-Id` 请求头（闲置 30 分钟后轮换），`pre_span_id` 来自前端 `X-Span-Id`，每个请求生成新的 `span_id` 并通过响应头回传。
-按规范，分享属于前端事件，后端不上报 `share`。配置项：`WATER_BOX_ENABLED`、`WATER_BOX_ENDPOINT`（默认 `http://127.0.0.1:8080/api/v1/events`）、`WATER_BOX_ENV`（`test` 或 `prod`）。
+配置项：`WATER_BOX_ENABLED`、`WATER_BOX_ENDPOINT`（默认 `http://127.0.0.1:8080/api/v1/events`）、`WATER_BOX_ENV`（`test` 或 `prod`）。
