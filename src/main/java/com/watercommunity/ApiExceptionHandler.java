@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -33,6 +34,11 @@ class ApiExceptionHandler {
     @ExceptionHandler(MissingRequestHeaderException.class)
     ResponseEntity<ApiError> handleMissingUser(MissingRequestHeaderException exception) {
         return response(HttpStatus.UNAUTHORIZED, "请先选择一个用户");
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    ResponseEntity<ApiError> handleMissingParameter(MissingServletRequestParameterException exception) {
+        return response(HttpStatus.BAD_REQUEST, "缺少请求参数 " + exception.getParameterName());
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

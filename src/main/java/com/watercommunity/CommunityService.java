@@ -158,12 +158,16 @@ class CommunityService {
     }
 
     @Transactional
-    ActionResponse toggleFollow(String userId, String targetUserId) {
+    ActionResponse toggleFollow(String userId, String targetUserId, String projectId) {
         if (userId.equals(targetUserId)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "不能关注自己");
         }
         CommunityUser user = requireUser(userId);
         CommunityUser target = requireUser(targetUserId);
+        Project project = requireProject(projectId);
+        if (!targetUserId.equals(project.getUser().getId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "只能在作者的作品下关注作者");
+        }
         var existing = followRepository.findByFollowerIdAndFollowingId(userId, targetUserId);
         if (existing.isPresent()) {
             followRepository.delete(existing.get());
@@ -173,7 +177,10 @@ class CommunityService {
         long count = followRepository.countByFollowingId(targetUserId);
         // The water-box action list has no unfollow, so only new follows are reported.
         if (existing.isEmpty()) {
-            tracker.track("follow", user, Map.of("target_user_id", targetUserId));
+            tracker.track("follow", user, Map.of(
+                    "project_id", projectId,
+                    "target_user_id", targetUserId
+            ));
         }
         return new ActionResponse(existing.isEmpty(), count, existing.isPresent() ? "已取消关注" : "已关注");
     }
@@ -182,10 +189,9 @@ class CommunityService {
     ActionResponse share(String userId, String projectId) {
         CommunityUser user = requireUser(userId);
         Project project = requireProject(projectId);
-        ProjectShare share = shareRepository.save(new ProjectShare(project, user));
+        shareRepository.save(new ProjectShare(project, user));
         tracker.track("share", user, Map.of(
                 "project_id", projectId,
-                "share_id", share.getId(),
                 "author_user_id", project.getUser().getId()
         ));
         return new ActionResponse(true, shareRepository.countByProjectId(projectId), "分享已记录");

@@ -153,9 +153,9 @@ class WaterCommunityApplicationTests {
         String shareBody = mockMvc.perform(post("/api/projects/" + project + "/shares").header("X-User-Id", user))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        mockMvc.perform(post("/api/users/u000000000000002/follow").header("X-User-Id", user))
+        mockMvc.perform(post("/api/users/u000000000000002/follow?projectId=" + project).header("X-User-Id", user))
                 .andExpect(status().isOk());
-        mockMvc.perform(post("/api/users/u000000000000002/follow").header("X-User-Id", user))
+        mockMvc.perform(post("/api/users/u000000000000002/follow?projectId=" + project).header("X-User-Id", user))
                 .andExpect(status().isOk());
         TestTransaction.end();
 
@@ -163,10 +163,7 @@ class WaterCommunityApplicationTests {
         TestTransaction.start();
         TestTransaction.flagForCommit();
         shareRepository.findAll().stream()
-                .filter(share -> share.getId().equals(sender.events.stream()
-                        .filter(event -> "share".equals(event.get("action")))
-                        .map(event -> ((Map<?, ?>) event.get("properties")).get("share_id"))
-                        .findFirst().orElse(null)))
+                .filter(share -> !share.getId().matches("s\\d{15}"))
                 .forEach(shareRepository::delete);
         TestTransaction.end();
         TestTransaction.start();
@@ -190,9 +187,25 @@ class WaterCommunityApplicationTests {
                 "comment_id", commentId,
                 "author_user_id", "u000000000000002"
         ));
-        assertThat((Map<String, Object>) sender.events.get(2).get("properties"))
-                .containsEntry("project_id", project)
-                .containsEntry("author_user_id", "u000000000000002");
+        assertThat(sender.events.get(2)).containsEntry("properties", Map.of(
+                "project_id", project,
+                "author_user_id", "u000000000000002"
+        ));
+        assertThat(sender.events.get(3)).containsEntry("properties", Map.of(
+                "project_id", project,
+                "target_user_id", "u000000000000002"
+        ));
+        assertThat(sender.events).allSatisfy(event -> {
+            assertThat(event.get("timestamp")).isInstanceOf(Long.class);
+            assertThat((String) event.get("log_id")).isNotBlank();
+            assertThat((String) event.get("user_id")).isNotBlank();
+            assertThat(((Map<String, Object>) event.get("properties")).values())
+                    .allSatisfy(value -> assertThat(value).isInstanceOf(String.class)
+                            .asString().isNotBlank());
+        });
+        mockMvc.perform(post("/api/users/u000000000000002/follow?projectId=p000000000000001")
+                        .header("X-User-Id", user))
+                .andExpect(status().isBadRequest());
         assertThat(sender.events).allSatisfy(event -> assertThat(List.of(
                 "like", "unlike", "comment", "delete_comment", "share", "follow"
         )).contains((String) event.get("action")));

@@ -211,7 +211,8 @@ function projectCard(project, index) {
     const followButton = state.currentUserId && !isOwn
         ? `<button class="follow-button${project.author.followedByMe ? " is-following" : ""}"
                    type="button"
-                   data-follow-user="${project.author.id}">
+                   data-follow-user="${project.author.id}"
+                   data-project-id="${project.id}">
                ${project.author.followedByMe ? "已关注" : "关注"}
            </button>`
         : "";
@@ -429,10 +430,10 @@ async function toggleLike(projectId, button) {
     }
 }
 
-async function toggleFollow(userId) {
+async function toggleFollow(userId, projectId) {
     if (!requireUser()) return;
     try {
-        const result = await api(`/api/users/${userId}/follow`, {method: "POST"});
+        const result = await api(`/api/users/${userId}/follow?projectId=${encodeURIComponent(projectId)}`, {method: "POST"});
         state.projects.forEach((project) => {
             if (project.author.id === userId) project.author.followedByMe = result.active;
         });
@@ -567,7 +568,7 @@ document.addEventListener("click", (event) => {
 
     const followButton = event.target.closest("[data-follow-user]");
     if (followButton) {
-        toggleFollow(followButton.dataset.followUser);
+        toggleFollow(followButton.dataset.followUser, followButton.dataset.projectId);
         return;
     }
 

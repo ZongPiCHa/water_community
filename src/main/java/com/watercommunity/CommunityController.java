@@ -98,8 +98,9 @@ class CommunityController {
     @PostMapping("/users/{targetUserId}/follow")
     ActionResponse toggleFollow(
             @RequestHeader("X-User-Id") String userId,
-            @PathVariable String targetUserId
+            @PathVariable String targetUserId,
+            @RequestParam String projectId
     ) {
-        return communityService.toggleFollow(userId, targetUserId);
+        return communityService.toggleFollow(userId, targetUserId, projectId);
     }
 }
