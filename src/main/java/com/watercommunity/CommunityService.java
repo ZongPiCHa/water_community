@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -21,6 +22,7 @@ class CommunityService {
     private final ProjectCommentRepository commentRepository;
     private final UserFollowRepository followRepository;
     private final ProjectShareRepository shareRepository;
+    private final WaterBoxTracker tracker;
 
     CommunityService(
             CommunityUserRepository userRepository,
@@ -29,7 +31,8 @@ class CommunityService {
             ProjectLikeRepository likeRepository,
             ProjectCommentRepository commentRepository,
             UserFollowRepository followRepository,
-            ProjectShareRepository shareRepository
+            ProjectShareRepository shareRepository,
+            WaterBoxTracker tracker
     ) {
         this.userRepository = userRepository;
         this.assetRepository = assetRepository;
@@ -38,10 +41,11 @@ class CommunityService {
         this.commentRepository = commentRepository;
         this.followRepository = followRepository;
         this.shareRepository = shareRepository;
+        this.tracker = tracker;
     }
 
     @Transactional(readOnly = true)
-    List<UserResponse> users(Long viewerId) {
+    List<UserResponse> users(String viewerId) {
         return userRepository.findAllByOrderByIdAsc().stream()
                 .map(user -> toUserResponse(user, viewerId))
                 .toList();
@@ -55,7 +59,7 @@ class CommunityService {
     }
 
     @Transactional(readOnly = true)
-    List<ProjectResponse> projects(Long viewerId, String sort) {
+    List<ProjectResponse> projects(String viewerId, String sort) {
         List<ProjectResponse> projects = new ArrayList<>(projectRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(project -> toProjectResponse(project, viewerId))
                 .toList());
@@ -69,7 +73,7 @@ class CommunityService {
     }
 
     @Transactional(readOnly = true)
-    ProfileResponse profile(Long userId) {
+    ProfileResponse profile(String userId) {
         CommunityUser user = requireUser(userId);
         List<ProjectResponse> projects = projectRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(project -> toProjectResponse(project, userId))
@@ -86,7 +90,7 @@ class CommunityService {
     }
 
     @Transactional
-    ProjectResponse publish(Long userId, PublishProjectRequest request) {
+    ProjectResponse publish(String userId, PublishProjectRequest request) {
         CommunityUser user = requireUser(userId);
         ImageAsset asset = assetRepository.findById(request.imageAssetId())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "所选图片不存在"));
@@ -99,11 +103,15 @@ class CommunityService {
         String description = request.description() == null ? "" : request.description().strip();
 
         Project project = projectRepository.save(new Project(user, asset, name, description));
+        tracker.track("publish", user, Map.of(
+                "project_id", project.getId(),
+                "image_asset_id", asset.getId()
+        ));
         return toProjectResponse(project, userId);
     }
 
     @Transactional
-    ActionResponse toggleLike(Long userId, Long projectId) {
+    ActionResponse toggleLike(String userId, String projectId) {
         CommunityUser user = requireUser(userId);
         Project project = requireProject(projectId);
         boolean liked = likeRepository.existsByProjectIdAndUserId(projectId, userId);
@@ -113,21 +121,30 @@ class CommunityService {
             likeRepository.save(new ProjectLike(project, user));
         }
         long count = likeRepository.countByProjectId(projectId);
+        tracker.track(liked ? "unlike" : "like", user, Map.of(
+                "project_id", projectId,
+                "author_user_id", project.getUser().getId()
+        ));
         return new ActionResponse(!liked, count, liked ? "已取消点赞" : "已点赞");
     }
 
     @Transactional
-    CommentResponse comment(Long userId, Long projectId, AddCommentRequest request) {
+    CommentResponse comment(String userId, String projectId, AddCommentRequest request) {
         CommunityUser user = requireUser(userId);
         Project project = requireProject(projectId);
         ProjectComment comment = commentRepository.save(
                 new ProjectComment(project, user, request.content().strip())
         );
+        tracker.track("comment", user, Map.of(
+                "project_id", projectId,
+                "comment_id", comment.getId(),
+                "author_user_id", project.getUser().getId()
+        ));
         return toCommentResponse(comment);
     }
 
     @Transactional
-    ActionResponse toggleFollow(Long userId, Long targetUserId) {
+    ActionResponse toggleFollow(String userId, String targetUserId) {
         if (userId.equals(targetUserId)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "不能关注自己");
         }
@@ -140,18 +157,21 @@ class CommunityService {
             followRepository.save(new UserFollow(user, target));
         }
         long count = followRepository.countByFollowingId(targetUserId);
+        tracker.track(existing.isPresent() ? "unfollow" : "follow", user, Map.of(
+                "target_user_id", targetUserId
+        ));
         return new ActionResponse(existing.isEmpty(), count, existing.isPresent() ? "已取消关注" : "已关注");
     }
 
     @Transactional
-    ActionResponse share(Long userId, Long projectId) {
+    ActionResponse share(String userId, String projectId) {
         CommunityUser user = requireUser(userId);
         Project project = requireProject(projectId);
         shareRepository.save(new ProjectShare(project, user));
         return new ActionResponse(true, shareRepository.countByProjectId(projectId), "分享已记录");
     }
 
-    private ProjectResponse toProjectResponse(Project project, Long viewerId) {
+    private ProjectResponse toProjectResponse(Project project, String viewerId) {
         CommunityUser author = project.getUser();
         boolean followed = viewerId != null
                 && !viewerId.equals(author.getId())
@@ -183,7 +203,7 @@ class CommunityService {
         );
     }
 
-    private UserResponse toUserResponse(CommunityUser user, Long viewerId) {
+    private UserResponse toUserResponse(CommunityUser user, String viewerId) {
         return new UserResponse(
                 user.getId(),
                 user.getNickname(),
@@ -221,12 +241,12 @@ class CommunityService {
         );
     }
 
-    private CommunityUser requireUser(Long userId) {
+    private CommunityUser requireUser(String userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "用户不存在，请重新选择用户"));
     }
 
-    private Project requireProject(Long projectId) {
+    private Project requireProject(String projectId) {
         return projectRepository.findById(projectId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "作品不存在"));
     }

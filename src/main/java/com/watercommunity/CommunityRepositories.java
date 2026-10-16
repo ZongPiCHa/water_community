@@ -6,52 +6,52 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
-interface CommunityUserRepository extends JpaRepository<CommunityUser, Long> {
+interface CommunityUserRepository extends JpaRepository<CommunityUser, String> {
     List<CommunityUser> findAllByOrderByIdAsc();
 }
 
-interface ImageAssetRepository extends JpaRepository<ImageAsset, Long> {
+interface ImageAssetRepository extends JpaRepository<ImageAsset, String> {
     List<ImageAsset> findAllByOrderBySortOrderAsc();
 }
 
-interface ProjectRepository extends JpaRepository<Project, Long> {
+interface ProjectRepository extends JpaRepository<Project, String> {
     @EntityGraph(attributePaths = {"user", "imageAsset"})
     List<Project> findAllByOrderByCreatedAtDesc();
 
     @EntityGraph(attributePaths = {"user", "imageAsset"})
-    List<Project> findByUserIdOrderByCreatedAtDesc(Long userId);
+    List<Project> findByUserIdOrderByCreatedAtDesc(String userId);
 
     boolean existsByName(String name);
 
-    long countByUserId(Long userId);
+    long countByUserId(String userId);
 }
 
-interface ProjectLikeRepository extends JpaRepository<ProjectLike, Long> {
-    long countByProjectId(Long projectId);
+interface ProjectLikeRepository extends JpaRepository<ProjectLike, String> {
+    long countByProjectId(String projectId);
 
-    long countByProjectUserId(Long userId);
+    long countByProjectUserId(String userId);
 
-    boolean existsByProjectIdAndUserId(Long projectId, Long userId);
+    boolean existsByProjectIdAndUserId(String projectId, String userId);
 
-    void deleteByProjectIdAndUserId(Long projectId, Long userId);
+    void deleteByProjectIdAndUserId(String projectId, String userId);
 }
 
-interface ProjectCommentRepository extends JpaRepository<ProjectComment, Long> {
-    long countByProjectId(Long projectId);
+interface ProjectCommentRepository extends JpaRepository<ProjectComment, String> {
+    long countByProjectId(String projectId);
 
-    List<ProjectComment> findTop2ByProjectIdOrderByCreatedAtDesc(Long projectId);
+    List<ProjectComment> findTop2ByProjectIdOrderByCreatedAtDesc(String projectId);
 }
 
-interface UserFollowRepository extends JpaRepository<UserFollow, Long> {
-    long countByFollowingId(Long userId);
+interface UserFollowRepository extends JpaRepository<UserFollow, String> {
+    long countByFollowingId(String userId);
 
-    long countByFollowerId(Long userId);
+    long countByFollowerId(String userId);
 
-    boolean existsByFollowerIdAndFollowingId(Long followerId, Long followingId);
+    boolean existsByFollowerIdAndFollowingId(String followerId, String followingId);
 
-    Optional<UserFollow> findByFollowerIdAndFollowingId(Long followerId, Long followingId);
+    Optional<UserFollow> findByFollowerIdAndFollowingId(String followerId, String followingId);
 }
 
-interface ProjectShareRepository extends JpaRepository<ProjectShare, Long> {
-    long countByProjectId(Long projectId);
+interface ProjectShareRepository extends JpaRepository<ProjectShare, String> {
+    long countByProjectId(String projectId);
 }

@@ -3,7 +3,7 @@ const state = {
     assets: [],
     projects: [],
     profile: null,
-    currentUserId: Number(localStorage.getItem("water.currentUserId")) || null,
+    currentUserId: localStorage.getItem("water.currentUserId") || null,
     selectedAssetId: null,
     sort: "latest"
 };
@@ -30,6 +30,22 @@ function assetUrl(asset) {
     return `/generated/landscapes/optimized/landscape-${asset.id}.jpg`;
 }
 
+const SESSION_IDLE_MS = 30 * 60 * 1000;
+let lastSpanId = null;
+
+// water-box groups actions by session; rotate the id after 30 minutes without API calls.
+function trackingSessionId() {
+    const now = Date.now();
+    let sessionId = localStorage.getItem("water.sessionId");
+    const lastActive = Number(localStorage.getItem("water.sessionActiveAt")) || 0;
+    if (!sessionId || now - lastActive > SESSION_IDLE_MS) {
+        sessionId = window.crypto?.randomUUID?.() || `${now.toString(36)}-${Math.random().toString(36).slice(2)}`;
+        localStorage.setItem("water.sessionId", sessionId);
+    }
+    localStorage.setItem("water.sessionActiveAt", String(now));
+    return sessionId;
+}
+
 function escapeHtml(value = "") {
     return String(value)
         .replaceAll("&", "&amp;")
@@ -46,13 +62,18 @@ function currentUser() {
 async function api(path, options = {}) {
     const headers = new Headers(options.headers || {});
     if (state.currentUserId) {
-        headers.set("X-User-Id", String(state.currentUserId));
+        headers.set("X-User-Id", state.currentUserId);
+    }
+    headers.set("X-Session-Id", trackingSessionId());
+    if (lastSpanId) {
+        headers.set("X-Span-Id", lastSpanId);
     }
     if (options.body) {
         headers.set("Content-Type", "application/json");
     }
 
     const response = await fetch(path, {...options, headers});
+    lastSpanId = response.headers.get("X-Span-Id") || lastSpanId;
     const contentType = response.headers.get("content-type") || "";
     const payload = contentType.includes("application/json") ? await response.json() : null;
     if (!response.ok) {
@@ -167,7 +188,7 @@ function renderAssets() {
                  alt="${escapeHtml(asset.altText)}"
                  loading="lazy"
                  data-fallback="${asset.accentColor}">
-            <span>${String(asset.id).padStart(2, "0")} · ${escapeHtml(asset.title)}</span>
+            <span>${asset.id.slice(-2)} · ${escapeHtml(asset.title)}</span>
         </button>
     `).join("");
     attachImageFallbacks(elements.assetGrid);
@@ -363,7 +384,7 @@ function selectAsset(assetId) {
     const asset = state.assets.find((item) => item.id === assetId);
     if (!asset) return;
     elements.assetGrid.querySelectorAll(".asset-option").forEach((option) => {
-        option.classList.toggle("is-selected", Number(option.dataset.selectAsset) === assetId);
+        option.classList.toggle("is-selected", option.dataset.selectAsset === assetId);
     });
     elements.selectionLabel.textContent = `已选择 · ${asset.title}`;
     elements.selectedPreview.innerHTML = `
@@ -375,7 +396,7 @@ function selectAsset(assetId) {
 
 async function selectUser(userId) {
     state.currentUserId = userId;
-    localStorage.setItem("water.currentUserId", String(userId));
+    localStorage.setItem("water.currentUserId", userId);
     updateCurrentUserControl();
     renderUsers();
     toast(`已切换为 ${currentUser()?.nickname || "新用户"}`);
@@ -441,7 +462,7 @@ async function submitComment(form) {
     const input = form.elements.content;
     const content = input.value.trim();
     if (!content) return;
-    const projectId = Number(form.dataset.commentForm);
+    const projectId = form.dataset.commentForm;
     const button = form.querySelector("button");
     button.disabled = true;
     try {
@@ -507,7 +528,7 @@ document.addEventListener("click", (event) => {
 
     const userCard = event.target.closest("[data-select-user]");
     if (userCard) {
-        selectUser(Number(userCard.dataset.selectUser));
+        selectUser(userCard.dataset.selectUser);
         return;
     }
 
@@ -523,19 +544,19 @@ document.addEventListener("click", (event) => {
 
     const likeButton = event.target.closest("[data-like-project]");
     if (likeButton) {
-        toggleLike(Number(likeButton.dataset.likeProject), likeButton);
+        toggleLike(likeButton.dataset.likeProject, likeButton);
         return;
     }
 
     const followButton = event.target.closest("[data-follow-user]");
     if (followButton) {
-        toggleFollow(Number(followButton.dataset.followUser));
+        toggleFollow(followButton.dataset.followUser);
         return;
     }
 
     const shareButton = event.target.closest("[data-share-project]");
     if (shareButton) {
-        shareProject(Number(shareButton.dataset.shareProject), shareButton);
+        shareProject(shareButton.dataset.shareProject, shareButton);
         return;
     }
 
@@ -548,7 +569,7 @@ document.addEventListener("click", (event) => {
 
     const assetOption = event.target.closest("[data-select-asset]");
     if (assetOption) {
-        selectAsset(Number(assetOption.dataset.selectAsset));
+        selectAsset(assetOption.dataset.selectAsset);
         return;
     }
 

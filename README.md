@@ -44,3 +44,23 @@ Flyway 会自动创建表结构并写入演示数据。端口由 `.env.local` �
 图片由应用通过同源 `/generated/` 路径提供，并随 JAR 打包。迁移时拉取仓库、配置 `.env.local` 后启动即可，不需要访问图片生成服务或单独复制图片。数据库保留提示词和展示元数据；未压缩的生成源图不参与 Git，页面不依赖它们。
 
 静态资源使用 `Cache-Control: no-cache`，允许缓存但每次使用前向服务器校验。前端脚本和样式带版本参数，更新它们时应同步调整 `index.html` 中的版本。如果浏览器曾缓存旧首页，可强制刷新，或首次访问时在首页 URL 后添加 `?v=74d8ddb`。
+
+## ID 规则
+
+所有业务 ID（用户、图片素材、作品、点赞、评论、关注、分享）均为 16 位字符串：1 位类型前缀 + 15 位小写 base36。
+前缀依次为 `u`、`a`、`p`、`l`、`c`、`f`、`s`。V4 迁移把历史数字 ID 补零保留，例如用户 1 变为 `u000000000000001`；新数据由后端随机生成。
+头像和风景图片按 ID 命名，例如 `avatar-u000000000000001.jpg`、`landscape-a000000000000001.jpg`。
+
+## water-box 埋点
+
+后端在事务提交后异步上报 water-box 协议事件（`system=backend`、`theme=community`），失败最多重试 3 次并沿用同一 `log_id`，不会影响业务请求。
+
+| action | properties |
+| --- | --- |
+| `publish` | `project_id`、`image_asset_id` |
+| `like` / `unlike` | `project_id`、`author_user_id` |
+| `comment` | `project_id`、`comment_id`、`author_user_id` |
+| `follow` / `unfollow` | `target_user_id` |
+
+`session_id` 来自前端 `X-Session-Id` 请求头（闲置 30 分钟后轮换），`pre_span_id` 来自前端 `X-Span-Id`，每个请求生成新的 `span_id` 并通过响应头回传。
+按规范，分享属于前端事件，后端不上报 `share`。配置项：`WATER_BOX_ENABLED`、`WATER_BOX_ENDPOINT`（默认 `http://127.0.0.1:8080/api/v1/events`）、`WATER_BOX_ENV`（`test` 或 `prod`）。

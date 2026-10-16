@@ -3,8 +3,6 @@ package com.watercommunity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -18,8 +16,8 @@ import java.time.ZoneId;
 @Table(name = "community_users")
 class CommunityUser {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(length = CommunityIds.LENGTH, columnDefinition = "CHAR(16)")
+    private String id;
 
     @Column(nullable = false, unique = true, length = 16)
     private String nickname;
@@ -39,7 +37,7 @@ class CommunityUser {
     protected CommunityUser() {
     }
 
-    Long getId() {
+    String getId() {
         return id;
     }
 
@@ -64,8 +62,8 @@ class CommunityUser {
 @Table(name = "image_assets")
 class ImageAsset {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(length = CommunityIds.LENGTH, columnDefinition = "CHAR(16)")
+    private String id;
 
     @Column(nullable = false, length = 32)
     private String title;
@@ -85,7 +83,7 @@ class ImageAsset {
     protected ImageAsset() {
     }
 
-    Long getId() {
+    String getId() {
         return id;
     }
 
@@ -114,15 +112,15 @@ class ImageAsset {
 @Table(name = "projects")
 class Project {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(length = CommunityIds.LENGTH, columnDefinition = "CHAR(16)")
+    private String id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = false, columnDefinition = "CHAR(16)")
     private CommunityUser user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "image_asset_id", nullable = false)
+    @JoinColumn(name = "image_asset_id", nullable = false, columnDefinition = "CHAR(16)")
     private ImageAsset imageAsset;
 
     @Column(nullable = false, unique = true, length = 24)
@@ -138,6 +136,7 @@ class Project {
     }
 
     Project(CommunityUser user, ImageAsset imageAsset, String name, String description) {
+        this.id = CommunityIds.next(CommunityIds.PROJECT);
         this.user = user;
         this.imageAsset = imageAsset;
         this.name = name;
@@ -145,7 +144,7 @@ class Project {
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
     }
 
-    Long getId() {
+    String getId() {
         return id;
     }
 
@@ -174,15 +173,15 @@ class Project {
 @Table(name = "project_likes")
 class ProjectLike {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(length = CommunityIds.LENGTH, columnDefinition = "CHAR(16)")
+    private String id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "project_id", nullable = false)
+    @JoinColumn(name = "project_id", nullable = false, columnDefinition = "CHAR(16)")
     private Project project;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = false, columnDefinition = "CHAR(16)")
     private CommunityUser user;
 
     @Column(name = "created_at", nullable = false)
@@ -192,6 +191,7 @@ class ProjectLike {
     }
 
     ProjectLike(Project project, CommunityUser user) {
+        this.id = CommunityIds.next(CommunityIds.LIKE);
         this.project = project;
         this.user = user;
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
@@ -202,15 +202,15 @@ class ProjectLike {
 @Table(name = "project_comments")
 class ProjectComment {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(length = CommunityIds.LENGTH, columnDefinition = "CHAR(16)")
+    private String id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "project_id", nullable = false)
+    @JoinColumn(name = "project_id", nullable = false, columnDefinition = "CHAR(16)")
     private Project project;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = false, columnDefinition = "CHAR(16)")
     private CommunityUser user;
 
     @Column(nullable = false, length = 240)
@@ -223,13 +223,14 @@ class ProjectComment {
     }
 
     ProjectComment(Project project, CommunityUser user, String content) {
+        this.id = CommunityIds.next(CommunityIds.COMMENT);
         this.project = project;
         this.user = user;
         this.content = content;
         this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
     }
 
-    Long getId() {
+    String getId() {
         return id;
     }
 
@@ -250,15 +251,15 @@ class ProjectComment {
 @Table(name = "user_follows")
 class UserFollow {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(length = CommunityIds.LENGTH, columnDefinition = "CHAR(16)")
+    private String id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "follower_id", nullable = false)
+    @JoinColumn(name = "follower_id", nullable = false, columnDefinition = "CHAR(16)")
     private CommunityUser follower;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "following_id", nullable = false)
+    @JoinColumn(name = "following_id", nullable = false, columnDefinition = "CHAR(16)")
     private CommunityUser following;
 
     @Column(name = "created_at", nullable = false)
@@ -268,6 +269,7 @@ class UserFollow {
     }
 
     UserFollow(CommunityUser follower, CommunityUser following) {
+        this.id = CommunityIds.next(CommunityIds.FOLLOW);
         this.follower = follower;
         this.following = following;
         this.createdAt = Instant.now();
@@ -278,15 +280,15 @@ class UserFollow {
 @Table(name = "project_shares")
 class ProjectShare {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(length = CommunityIds.LENGTH, columnDefinition = "CHAR(16)")
+    private String id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "project_id", nullable = false)
+    @JoinColumn(name = "project_id", nullable = false, columnDefinition = "CHAR(16)")
     private Project project;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id", nullable = false, columnDefinition = "CHAR(16)")
     private CommunityUser user;
 
     @Column(name = "created_at", nullable = false)
@@ -296,6 +298,7 @@ class ProjectShare {
     }
 
     ProjectShare(Project project, CommunityUser user) {
+        this.id = CommunityIds.next(CommunityIds.SHARE);
         this.project = project;
         this.user = user;
         this.createdAt = Instant.now();

@@ -25,7 +25,7 @@ class CommunityController {
 
     @GetMapping("/users")
     List<UserResponse> users(
-            @RequestHeader(value = "X-User-Id", required = false) Long viewerId
+            @RequestHeader(value = "X-User-Id", required = false) String viewerId
     ) {
         return communityService.users(viewerId);
     }
@@ -37,21 +37,21 @@ class CommunityController {
 
     @GetMapping("/projects")
     List<ProjectResponse> projects(
-            @RequestHeader(value = "X-User-Id", required = false) Long viewerId,
+            @RequestHeader(value = "X-User-Id", required = false) String viewerId,
             @RequestParam(defaultValue = "latest") String sort
     ) {
         return communityService.projects(viewerId, sort);
     }
 
     @GetMapping("/me")
-    ProfileResponse profile(@RequestHeader("X-User-Id") Long userId) {
+    ProfileResponse profile(@RequestHeader("X-User-Id") String userId) {
         return communityService.profile(userId);
     }
 
     @PostMapping("/projects")
     @ResponseStatus(HttpStatus.CREATED)
     ProjectResponse publish(
-            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-User-Id") String userId,
             @Valid @RequestBody PublishProjectRequest request
     ) {
         return communityService.publish(userId, request);
@@ -59,8 +59,8 @@ class CommunityController {
 
     @PostMapping("/projects/{projectId}/likes")
     ActionResponse toggleLike(
-            @RequestHeader("X-User-Id") Long userId,
-            @PathVariable Long projectId
+            @RequestHeader("X-User-Id") String userId,
+            @PathVariable String projectId
     ) {
         return communityService.toggleLike(userId, projectId);
     }
@@ -68,8 +68,8 @@ class CommunityController {
     @PostMapping("/projects/{projectId}/comments")
     @ResponseStatus(HttpStatus.CREATED)
     CommentResponse comment(
-            @RequestHeader("X-User-Id") Long userId,
-            @PathVariable Long projectId,
+            @RequestHeader("X-User-Id") String userId,
+            @PathVariable String projectId,
             @Valid @RequestBody AddCommentRequest request
     ) {
         return communityService.comment(userId, projectId, request);
@@ -78,16 +78,16 @@ class CommunityController {
     @PostMapping("/projects/{projectId}/shares")
     @ResponseStatus(HttpStatus.CREATED)
     ActionResponse share(
-            @RequestHeader("X-User-Id") Long userId,
-            @PathVariable Long projectId
+            @RequestHeader("X-User-Id") String userId,
+            @PathVariable String projectId
     ) {
         return communityService.share(userId, projectId);
     }
 
     @PostMapping("/users/{targetUserId}/follow")
     ActionResponse toggleFollow(
-            @RequestHeader("X-User-Id") Long userId,
-            @PathVariable Long targetUserId
+            @RequestHeader("X-User-Id") String userId,
+            @PathVariable String targetUserId
     ) {
         return communityService.toggleFollow(userId, targetUserId);
     }

@@ -1,7 +1,6 @@
 package com.watercommunity;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
@@ -9,7 +8,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 record UserResponse(
-        Long id,
+        String id,
         String nickname,
         String avatarPrompt,
         String bio,
@@ -22,7 +21,7 @@ record UserResponse(
 }
 
 record AuthorResponse(
-        Long id,
+        String id,
         String nickname,
         String avatarPrompt,
         String accentColor,
@@ -31,7 +30,7 @@ record AuthorResponse(
 }
 
 record AssetResponse(
-        Long id,
+        String id,
         String title,
         String imagePrompt,
         String altText,
@@ -40,8 +39,8 @@ record AssetResponse(
 }
 
 record CommentResponse(
-        Long id,
-        Long userId,
+        String id,
+        String userId,
         String nickname,
         String avatarPrompt,
         String content,
@@ -50,7 +49,7 @@ record CommentResponse(
 }
 
 record ProjectResponse(
-        Long id,
+        String id,
         String name,
         String description,
         LocalDateTime createdAt,
@@ -74,8 +73,8 @@ record ProfileResponse(
 }
 
 record PublishProjectRequest(
-        @NotNull(message = "请选择一张作品图片")
-        Long imageAssetId,
+        @NotBlank(message = "请选择一张作品图片")
+        String imageAssetId,
 
         @Size(max = 24, message = "作品名称不能超过 24 个字符")
         String name,
