@@ -49,6 +49,11 @@ class WaterBoxTracker {
     }
 
     void track(String action, CommunityUser user, Map<String, Object> properties) {
+        track("backend", action, user, properties);
+    }
+
+    // Front-end actions relayed through the API, such as page views, keep system=front.
+    void track(String system, String action, CommunityUser user, Map<String, Object> properties) {
         WaterBoxSender target = sender.getIfAvailable();
         if (target == null) {
             return;
@@ -61,7 +66,7 @@ class WaterBoxTracker {
         event.put("session_id", attribute(request, TrackingFilter.SESSION_ID, "srv-" + UUID.randomUUID()));
         event.put("span_id", attribute(request, TrackingFilter.SPAN_ID, UUID.randomUUID().toString()));
         event.put("pre_span_id", attribute(request, TrackingFilter.PRE_SPAN_ID, null));
-        event.put("system", "backend");
+        event.put("system", system);
         event.put("theme", THEME_COMMUNITY);
         event.put("action", action);
         event.put("user_id", user.getId());

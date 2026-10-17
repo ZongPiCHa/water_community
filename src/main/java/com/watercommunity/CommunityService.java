@@ -1,11 +1,10 @@
 package com.watercommunity;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
@@ -46,7 +45,7 @@ class CommunityService {
 
     @Transactional(readOnly = true)
     List<UserResponse> users(String viewerId) {
-        return userRepository.findAllByOrderByIdAsc().stream()
+        return userRepository.findBySelectableTrueOrderByIdAsc().stream()
                 .map(user -> toUserResponse(user, viewerId))
                 .toList();
     }
@@ -59,17 +58,40 @@ class CommunityService {
     }
 
     @Transactional(readOnly = true)
-    List<ProjectResponse> projects(String viewerId, String sort) {
-        List<ProjectResponse> projects = new ArrayList<>(projectRepository.findAllByOrderByCreatedAtDesc().stream()
+    List<ProjectResponse> projects(String viewerId, String sort, int page, int size) {
+        PageRequest pageRequest = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 50));
+        List<Project> projects = "popular".equalsIgnoreCase(sort)
+                ? projectRepository.findPopular(pageRequest)
+                : projectRepository.findAllByOrderByCreatedAtDesc(pageRequest);
+        return projects.stream()
                 .map(project -> toProjectResponse(project, viewerId))
-                .toList());
-        if ("popular".equalsIgnoreCase(sort)) {
-            projects.sort(Comparator
-                    .comparingLong(ProjectResponse::likeCount)
-                    .thenComparing(ProjectResponse::createdAt)
-                    .reversed());
-        }
-        return projects;
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    SimulationCatalog simulationCatalog() {
+        return new SimulationCatalog(
+                pairs(userRepository.findAllIdsWithNickname()),
+                pairs(projectRepository.findAllIdsWithAuthor()),
+                pairs(likeRepository.findAllUserProjectPairs()),
+                pairs(followRepository.findAllFollowerFollowingPairs())
+        );
+    }
+
+    @Transactional(readOnly = true)
+    void view(String userId, String projectId) {
+        CommunityUser user = requireUser(userId);
+        Project project = requireProject(projectId);
+        tracker.track("front", "view_page", user, Map.of(
+                "project_id", projectId,
+                "author_user_id", project.getUser().getId()
+        ));
+    }
+
+    private static List<List<String>> pairs(List<Object[]> rows) {
+        return rows.stream()
+                .map(row -> List.of((String) row[0], (String) row[1]))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -217,6 +239,7 @@ class CommunityService {
                         author.getId(),
                         author.getNickname(),
                         author.getAvatarPrompt(),
+                        author.getAvatarUrl(),
                         author.getAccentColor(),
                         followed
                 ),
@@ -234,6 +257,7 @@ class CommunityService {
                 user.getId(),
                 user.getNickname(),
                 user.getAvatarPrompt(),
+                user.getAvatarUrl(),
                 user.getBio(),
                 user.getAccentColor(),
                 projectRepository.countByUserId(user.getId()),
@@ -262,6 +286,7 @@ class CommunityService {
                 author.getId(),
                 author.getNickname(),
                 author.getAvatarPrompt(),
+                author.getAvatarUrl(),
                 comment.getContent(),
                 comment.getCreatedAt()
         );

@@ -34,6 +34,10 @@ class CommunityUser {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    // Simulated users exist for load testing but are not offered in the user switcher.
+    @Column(nullable = false)
+    private boolean selectable;
+
     protected CommunityUser() {
     }
 
@@ -55,6 +59,16 @@ class CommunityUser {
 
     String getAccentColor() {
         return accentColor;
+    }
+
+    boolean isSelectable() {
+        return selectable;
+    }
+
+    String getAvatarUrl() {
+        return selectable
+                ? "/generated/avatars/optimized/avatar-" + id + ".jpg"
+                : "/generated/avatars/default-avatar.svg";
     }
 }
 

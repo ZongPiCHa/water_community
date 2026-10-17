@@ -872,6 +872,13 @@ img {
     white-space: nowrap;
 }
 
+.feed-more {
+    display: flex;
+    grid-column: 1 / -1;
+    justify-content: center;
+    padding: 12px 0;
+}
+
 .empty-state,
 .loading-state {
     grid-column: 1 / -1;

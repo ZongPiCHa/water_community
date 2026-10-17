@@ -62,9 +62,16 @@ Flyway 会自动创建表结构并写入演示数据。端口由 `.env.local` �
 | `delete_comment` | `project_id`、`comment_id`、`author_user_id` |
 | `share` | `project_id`、`author_user_id` |
 | `follow` | `project_id`、`target_user_id` |
+| `view_page` | `project_id`、`author_user_id`（`system=front`，由 `POST /api/projects/{projectId}/views` 转发） |
 
-上报 action 严格限定为 water-box 动作列表：`like`、`unlike`、`comment`、`delete_comment`、`share`、`follow`。取消关注和发布作品不上报。
+上报 action 严格限定为 water-box 动作列表：`view_page`、`like`、`unlike`、`comment`、`delete_comment`、`share`、`follow`。取消关注和发布作品不上报。
 关注接口为 `POST /api/users/{targetUserId}/follow?projectId=...`，作品必须属于被关注用户。所有 properties 值均为非空字符串。
 评论可由评论者本人或作品作者删除（`DELETE /api/projects/{projectId}/comments/{commentId}`）。
 `session_id` 来自前端 `X-Session-Id` 请求头（闲置 30 分钟后轮换），`pre_span_id` 来自前端 `X-Span-Id`，每个请求生成新的 `span_id` 并通过响应头回传。
 配置项：`WATER_BOX_ENABLED`、`WATER_BOX_ENDPOINT`（默认 `http://127.0.0.1:8080/api/v1/events`）、`WATER_BOX_ENV`（`test` 或 `prod`）。
+
+## 模拟规模
+
+V5 迁移把社区扩容到 10,000 个用户和 20,000 个作品。新增用户 `selectable=false`，使用默认头像 `generated/avatars/default-avatar.svg`，名字唯一，不出现在「选取用户」中；新增作品循环使用已有风景图，名字唯一，会出现在社区信息流。
+社区信息流分页加载（`GET /api/projects?sort=latest|popular&page=0&size=24`，`size` 最大 50），滚动到底部自动加载下一页。
+`GET /api/simulation/catalog` 返回全部用户 ID 与昵称、作品与作者、已有点赞和关注关系，供 water-box 的 `tools/simulate_traffic.py` 生成符合真实数据的埋点。

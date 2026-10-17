@@ -5,8 +5,13 @@ const state = {
     profile: null,
     currentUserId: localStorage.getItem("water.currentUserId") || null,
     selectedAssetId: null,
-    sort: "latest"
+    sort: "latest",
+    page: 0,
+    hasMore: false,
+    loadingMore: false
 };
+
+const PAGE_SIZE = 24;
 
 const elements = {
     usersGrid: document.querySelector("#users-grid"),
@@ -22,8 +27,7 @@ const elements = {
 };
 
 function avatarUrl(user) {
-    const userId = user.userId || user.id;
-    return `/generated/avatars/optimized/avatar-${userId}.jpg`;
+    return user.avatarUrl || `/generated/avatars/optimized/avatar-${user.userId || user.id}.jpg`;
 }
 
 function assetUrl(asset) {
@@ -292,15 +296,56 @@ function renderProjects() {
             </div>`;
         return;
     }
-    elements.projectFeed.innerHTML = state.projects.map(projectCard).join("");
+    elements.projectFeed.innerHTML = state.projects.map(projectCard).join("")
+        + (state.hasMore
+            ? `<div class="feed-more"><button class="submit-button" type="button" data-load-more>加载更多作品</button></div>`
+            : "");
     refreshIcons();
     attachImageFallbacks(elements.projectFeed);
+    observeFeedEnd();
+}
+
+const feedEndObserver = "IntersectionObserver" in window
+    ? new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) loadMoreProjects();
+    }, {rootMargin: "600px"})
+    : null;
+
+function observeFeedEnd() {
+    feedEndObserver?.disconnect();
+    const trigger = elements.projectFeed.querySelector("[data-load-more]");
+    if (trigger) feedEndObserver?.observe(trigger);
+}
+
+function fetchProjectPage(page) {
+    return api(`/api/projects?sort=${state.sort}&page=${page}&size=${PAGE_SIZE}`);
+}
+
+// Pages are appended as the reader scrolls; the feed holds 20,000 projects, so never request them all.
+async function loadMoreProjects() {
+    if (!state.hasMore || state.loadingMore) return;
+    state.loadingMore = true;
+    try {
+        const projects = await fetchProjectPage(state.page + 1);
+        state.page += 1;
+        const known = new Set(state.projects.map((project) => project.id));
+        state.projects.push(...projects.filter((project) => !known.has(project.id)));
+        state.hasMore = projects.length === PAGE_SIZE;
+        renderProjects();
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        state.loadingMore = false;
+    }
 }
 
 async function loadProjects() {
     showLoading(elements.projectFeed);
     try {
-        state.projects = await api(`/api/projects?sort=${state.sort}`);
+        const pages = Math.max(state.page, 0) + 1;
+        const results = await Promise.all(Array.from({length: pages}, (_, page) => fetchProjectPage(page)));
+        state.projects = results.flat();
+        state.hasMore = results[results.length - 1].length === PAGE_SIZE;
         renderProjects();
     } catch (error) {
         elements.projectFeed.innerHTML = `<div class="empty-state"><div><h2>暂时无法载入</h2><p>${escapeHtml(error.message)}</p></div></div>`;
@@ -515,6 +560,7 @@ async function submitProject(event) {
         elements.publishDialog.close();
         toast(`《${project.name}》已发布`);
         state.sort = "latest";
+        state.page = 0;
         document.querySelectorAll("[data-sort]").forEach((button) => {
             button.classList.toggle("is-active", button.dataset.sort === "latest");
         });
@@ -550,9 +596,15 @@ document.addEventListener("click", (event) => {
         return;
     }
 
+    if (event.target.closest("[data-load-more]")) {
+        loadMoreProjects();
+        return;
+    }
+
     const sortButton = event.target.closest("[data-sort]");
     if (sortButton) {
         state.sort = sortButton.dataset.sort;
+        state.page = 0;
         document.querySelectorAll("[data-sort]").forEach((button) => {
             button.classList.toggle("is-active", button === sortButton);
         });

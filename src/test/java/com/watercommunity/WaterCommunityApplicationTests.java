@@ -51,8 +51,45 @@ class WaterCommunityApplicationTests {
 
         mockMvc.perform(get("/api/projects").header("X-User-Id", "u000000000000001"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(16)))
+                .andExpect(jsonPath("$", hasSize(20)))
                 .andExpect(jsonPath("$[0].name", is("雾中岛")));
+    }
+
+    @Test
+    void scaledCommunityHidesSimulatedUsersButShowsTheirProjects() throws Exception {
+        mockMvc.perform(get("/api/simulation/catalog"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.users", hasSize(10000)))
+                .andExpect(jsonPath("$.projects", hasSize(20000)))
+                .andExpect(jsonPath("$.users[9999][0]", matchesPattern("^u[0-9]{15}$")));
+
+        mockMvc.perform(get("/api/projects?page=399&size=50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(50)))
+                .andExpect(jsonPath("$[49].author.avatarUrl", is("/generated/avatars/default-avatar.svg")));
+
+        mockMvc.perform(get("/api/projects?sort=popular&size=5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(5)));
+    }
+
+    @Test
+    void projectViewEmitsFrontViewPageEvent() throws Exception {
+        sender.events.clear();
+        TestTransaction.flagForCommit();
+        mockMvc.perform(post("/api/projects/p000000000100001/views").header("X-User-Id", "u000000000100002"))
+                .andExpect(status().isNoContent());
+        assertThat(sender.events).isEmpty();
+        TestTransaction.end();
+        TestTransaction.start();
+        assertThat(sender.events).hasSize(1);
+        assertThat(sender.events.get(0))
+                .containsEntry("system", "front")
+                .containsEntry("action", "view_page")
+                .containsEntry("properties", Map.of(
+                        "project_id", "p000000000100001",
+                        "author_user_id", "u000000000100001"
+                ));
     }
 
     @Test

@@ -11,6 +11,7 @@ record UserResponse(
         String id,
         String nickname,
         String avatarPrompt,
+        String avatarUrl,
         String bio,
         String accentColor,
         long projectCount,
@@ -24,6 +25,7 @@ record AuthorResponse(
         String id,
         String nickname,
         String avatarPrompt,
+        String avatarUrl,
         String accentColor,
         boolean followedByMe
 ) {
@@ -43,6 +45,7 @@ record CommentResponse(
         String userId,
         String nickname,
         String avatarPrompt,
+        String avatarUrl,
         String content,
         LocalDateTime createdAt
 ) {
@@ -88,6 +91,14 @@ record AddCommentRequest(
         @NotBlank(message = "评论内容不能为空")
         @Size(max = 240, message = "评论不能超过 240 个字符")
         String content
+) {
+}
+
+record SimulationCatalog(
+        List<List<String>> users,
+        List<List<String>> projects,
+        List<List<String>> likes,
+        List<List<String>> follows
 ) {
 }
 
