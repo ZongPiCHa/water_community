@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#f7f7f3">
     <meta name="description" content="水集，一个用于模拟创作、分享与互动的灵感社区。">
     <title>水集 · 创作社区</title>
-    <link rel="stylesheet" href="/styles.css?v=scale20k">
+    <link rel="stylesheet" href="/styles.css?v=heat-rankings">
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
-    <script src="/app.js?v=scale20k" defer></script>
+    <script src="/app.js?v=heat-rankings" defer></script>
 </head>
 <body>
 <header class="topbar">
@@ -72,9 +72,18 @@
                 <h1 id="community-title">正在发生</h1>
             </div>
             <div class="segmented" role="group" aria-label="作品排序">
-                <button class="is-active" type="button" data-sort="latest">最新</button>
-                <button type="button" data-sort="popular">热门</button>
+                <button class="is-active" type="button" data-sort="heat">热度排序</button>
+                <button type="button" data-sort="latest">最新排序</button>
             </div>
+        </div>
+        <div class="ranking-controls" id="ranking-controls">
+            <div class="segmented" role="group" aria-label="热度窗口">
+                <button class="is-active" type="button" data-window="1" aria-pressed="true">小时榜</button>
+                <button type="button" data-window="2" aria-pressed="false">天榜</button>
+                <button type="button" data-window="3" aria-pressed="false">三天榜</button>
+                <button type="button" data-window="4" aria-pressed="false">周榜</button>
+            </div>
+            <p id="ranking-status" role="status">每 30 秒更新 · 各窗口 Top 5</p>
         </div>
         <div class="feed" id="project-feed" aria-live="polite"></div>
     </section>

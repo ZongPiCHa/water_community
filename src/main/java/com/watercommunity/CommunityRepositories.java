@@ -21,14 +21,7 @@ interface ImageAssetRepository extends JpaRepository<ImageAsset, String> {
 
 interface ProjectRepository extends JpaRepository<Project, String> {
     @EntityGraph(attributePaths = {"user", "imageAsset"})
-    List<Project> findAllByOrderByCreatedAtDesc(Pageable pageable);
-
-    @Query("""
-            select p from Project p left join ProjectLike l on l.project = p
-            group by p
-            order by count(l) desc, p.createdAt desc
-            """)
-    List<Project> findPopular(Pageable pageable);
+    List<Project> findAllByOrderByCreatedAtDescIdAsc(Pageable pageable);
 
     @Query("select p.id, p.user.id from Project p order by p.id")
     List<Object[]> findAllIdsWithAuthor();

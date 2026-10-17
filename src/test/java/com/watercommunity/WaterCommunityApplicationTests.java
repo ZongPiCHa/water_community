@@ -69,8 +69,7 @@ class WaterCommunityApplicationTests {
                 .andExpect(jsonPath("$[49].author.avatarUrl", is("/generated/avatars/default-avatar.svg")));
 
         mockMvc.perform(get("/api/projects?sort=popular&size=5"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(5)));
+                .andExpect(status().isBadRequest());
     }
 
     @Test

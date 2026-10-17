@@ -59,10 +59,11 @@ class CommunityService {
 
     @Transactional(readOnly = true)
     List<ProjectResponse> projects(String viewerId, String sort, int page, int size) {
+        if (!"latest".equalsIgnoreCase(sort)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "热度排序请使用 /api/project-rankings");
+        }
         PageRequest pageRequest = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 50));
-        List<Project> projects = "popular".equalsIgnoreCase(sort)
-                ? projectRepository.findPopular(pageRequest)
-                : projectRepository.findAllByOrderByCreatedAtDesc(pageRequest);
+        List<Project> projects = projectRepository.findAllByOrderByCreatedAtDescIdAsc(pageRequest);
         return projects.stream()
                 .map(project -> toProjectResponse(project, viewerId))
                 .toList();

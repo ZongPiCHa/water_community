@@ -1386,6 +1386,53 @@ img {
     }
 }
 
+.ranking-controls {
+    width: var(--content);
+    margin: 24px auto 0;
+}
+
+.ranking-controls[hidden] {
+    display: none;
+}
+
+.ranking-controls .segmented {
+    width: fit-content;
+    max-width: 100%;
+    flex-wrap: wrap;
+}
+
+#ranking-status {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.7;
+    margin-top: 14px;
+}
+
+.ranking-heat {
+    margin: 16px 0;
+    color: var(--green);
+    font-size: 13px;
+}
+
+.ranking-heat strong {
+    margin-left: 6px;
+    font-size: 28px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ranking-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.ranking-position {
+    padding: 12px 20px 0;
+    color: var(--green);
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

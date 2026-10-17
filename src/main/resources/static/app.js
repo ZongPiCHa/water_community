@@ -5,13 +5,19 @@ const state = {
     profile: null,
     currentUserId: localStorage.getItem("water.currentUserId") || null,
     selectedAssetId: null,
-    sort: "latest",
+    sort: "heat",
     page: 0,
     hasMore: false,
     loadingMore: false
 };
 
 const PAGE_SIZE = 24;
+let feedRequest = 0;
+let rankings = null;
+let rankingRequest = null;
+let rankingUpdatedAt = 0;
+let rankingWindow = 1;
+let rankingError = "";
 
 const elements = {
     usersGrid: document.querySelector("#users-grid"),
@@ -305,6 +311,77 @@ function renderProjects() {
     observeFeedEnd();
 }
 
+function renderRankings() {
+    if (state.sort !== "heat") return;
+    feedEndObserver?.disconnect();
+    const board = rankings?.windows.find((window) => window.windowType === rankingWindow);
+    document.querySelectorAll("[data-window]").forEach((button) => {
+        const active = Number(button.dataset.window) === rankingWindow;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-pressed", String(active));
+    });
+    const status = document.querySelector("#ranking-status");
+    const first = board?.projects[0];
+    status.textContent = rankingError
+        ? `${rankingError}${rankings ? "，保留上次结果" : ""}`
+        : first
+            ? `${first.windowStart} — ${first.windowEnd} · 最新有数据的窗口 · 每 30 秒更新`
+            : "各窗口 Top 5 · 每 30 秒更新";
+    if (!rankings) {
+        elements.projectFeed.innerHTML = `<div class="empty-state"><div><h2>${rankingError ? "热度榜暂不可用" : "正在载入热度榜…"}</h2><p>${escapeHtml(rankingError)}</p></div></div>`;
+        return;
+    }
+    if (!first) {
+        elements.projectFeed.innerHTML = `<div class="empty-state"><div><h2>${rankings.scoreVersion == null ? "暂无生效的热度规则" : "该窗口暂无排名"}</h2><p>有数据后将自动更新。</p></div></div>`;
+        return;
+    }
+    elements.projectFeed.innerHTML = board.projects.map((project, index) => `
+        <article class="project-card ranking-card" data-ranked-project="${escapeHtml(project.projectId)}">
+            ${project.imageUrl ? `<div class="project-image-wrap"><img class="project-image" src="${escapeHtml(project.imageUrl)}" alt="${escapeHtml(project.projectName || project.projectId)}"><span class="project-number">TOP ${index + 1}</span></div>` : `<p class="ranking-position">TOP ${index + 1}</p>`}
+            <div class="project-body">
+                <div class="author-main">
+                    ${project.avatarUrl ? `<img class="avatar" src="${escapeHtml(project.avatarUrl)}" alt="">` : ""}
+                    <span class="author-name">${escapeHtml(project.nickname || project.userId)}</span>
+                </div>
+                <h2 class="project-title">${escapeHtml(project.projectName || project.projectId)}</h2>
+                <p class="ranking-heat">热度 <strong>${new Intl.NumberFormat("zh-CN", {maximumFractionDigits: 3}).format(project.heatScore)}</strong></p>
+                <div class="ranking-counts" aria-label="窗口内互动统计">
+                    <span>点赞 ${project.likeCount}</span><span>评论 ${project.commentCount}</span>
+                    <span>转发 ${project.shareCount}</span><span>关注 ${project.followCount}</span>
+                    <span>浏览 ${project.viewPageCount}</span>
+                </div>
+            </div>
+        </article>
+    `).join("");
+}
+
+async function loadRankings(force = false) {
+    if (rankingRequest) return rankingRequest;
+    if (!force && rankings && Date.now() - rankingUpdatedAt < 30000) {
+        renderRankings();
+        return;
+    }
+    rankingRequest = (async () => {
+        try {
+            rankings = await api("/api/project-rankings");
+            rankingUpdatedAt = Date.now();
+            rankingError = "";
+        } catch (error) {
+            rankingError = error.message;
+        } finally {
+            rankingRequest = null;
+            renderRankings();
+        }
+    })();
+    return rankingRequest;
+}
+
+setInterval(() => {
+    if (state.sort === "heat" && document.querySelector("#view-community").classList.contains("is-active")) {
+        loadRankings(true);
+    }
+}, 30000);
+
 const feedEndObserver = "IntersectionObserver" in window
     ? new IntersectionObserver((entries) => {
         if (entries.some((entry) => entry.isIntersecting)) loadMoreProjects();
@@ -323,10 +400,12 @@ function fetchProjectPage(page) {
 
 // Pages are appended as the reader scrolls; the feed holds 20,000 projects, so never request them all.
 async function loadMoreProjects() {
-    if (!state.hasMore || state.loadingMore) return;
+    if (state.sort !== "latest" || !state.hasMore || state.loadingMore) return;
+    const request = feedRequest;
     state.loadingMore = true;
     try {
         const projects = await fetchProjectPage(state.page + 1);
+        if (request !== feedRequest || state.sort !== "latest") return;
         state.page += 1;
         const known = new Set(state.projects.map((project) => project.id));
         state.projects.push(...projects.filter((project) => !known.has(project.id)));
@@ -340,14 +419,25 @@ async function loadMoreProjects() {
 }
 
 async function loadProjects() {
+    const request = ++feedRequest;
+    feedEndObserver?.disconnect();
+    document.querySelector("#ranking-controls").hidden = state.sort !== "heat";
+    if (state.sort === "heat") {
+        state.hasMore = false;
+        renderRankings();
+        await loadRankings();
+        return;
+    }
     showLoading(elements.projectFeed);
     try {
         const pages = Math.max(state.page, 0) + 1;
         const results = await Promise.all(Array.from({length: pages}, (_, page) => fetchProjectPage(page)));
+        if (request !== feedRequest || state.sort !== "latest") return;
         state.projects = results.flat();
         state.hasMore = results[results.length - 1].length === PAGE_SIZE;
         renderProjects();
     } catch (error) {
+        if (request !== feedRequest) return;
         elements.projectFeed.innerHTML = `<div class="empty-state"><div><h2>暂时无法载入</h2><p>${escapeHtml(error.message)}</p></div></div>`;
     }
 }
@@ -609,6 +699,13 @@ document.addEventListener("click", (event) => {
             button.classList.toggle("is-active", button === sortButton);
         });
         loadProjects();
+        return;
+    }
+
+    const windowButton = event.target.closest("[data-window]");
+    if (windowButton) {
+        rankingWindow = Number(windowButton.dataset.window);
+        renderRankings();
         return;
     }
 

@@ -73,5 +73,15 @@ Flyway 会自动创建表结构并写入演示数据。端口由 `.env.local` �
 ## 模拟规模
 
 V5 迁移把社区扩容到 10,000 个用户和 20,000 个作品。新增用户 `selectable=false`，使用默认头像 `generated/avatars/default-avatar.svg`，名字唯一，不出现在「选取用户」中；新增作品循环使用已有风景图，名字唯一，会出现在社区信息流。
-社区信息流分页加载（`GET /api/projects?sort=latest|popular&page=0&size=24`，`size` 最大 50），滚动到底部自动加载下一页。
+最新作品分页加载（`GET /api/projects?sort=latest&page=0&size=24`，`size` 最大 50），滚动到底部自动加载下一页。
 `GET /api/simulation/catalog` 返回全部用户 ID 与昵称、作品与作者、已有点赞和关注关系，供 water-box 的 `tools/simulate_traffic.py` 生成符合真实数据的埋点。
+
+## 热度排序
+
+社区提供「热度排序」和「最新排序」。热度排序展示小时、天、三天、周四个窗口各自的 Top 5，默认小时榜；切换窗口使用已获取的数据。在热度页面每 30 秒调用一次 `GET /api/project-rankings`，一次返回四榜。
+
+接口使用现有数据源，数据库账号需要对 `water_analytics.heat_score_rule` 和 `water_analytics.project_engagement_stats` 有 SELECT 权限。分析表由分析系统维护，不纳入社区 Flyway 迁移。
+
+每次请求查询一次 `status=1` 的规则版本，再分别查询四个窗口，共 5 条 SQL。排名使用 `idx_project_rank_lookup` 索引，选择该版本下最新有数据的 `window_start`，按 `heat_score DESC, project_id ASC LIMIT 5` 排列；无 `NOW()` 限制，不要求窗口已结束，三天榜为固定三天窗口。规则不存在时返回四个空榜，分析库错误返回 503，均不回退为点赞数排名。
+
+Top 5 选出后在同一条 SQL 中关联社区作品名、作者昵称及图片；无法关联的历史 ID 仍保留原排名并显示 ID。接口以精确小数将数据库整数热度除以 1000（例如 17300 → 17.3），同时返回五种互动计数及窗口起止时间。页面只读取 Flink 已计算的结果，不重算、不写回、不触发规则发布流程。原 `sort=popular` 接口返回 400，请改用 `/api/project-rankings`。
