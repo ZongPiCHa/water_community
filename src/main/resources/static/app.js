@@ -15,7 +15,7 @@ const PAGE_SIZE = 24;
 let feedRequest = 0;
 let rankings = null;
 let rankingRequest = null;
-let rankingUpdatedAt = 0;
+let rankingFetchedAt = 0;
 let rankingWindow = 1;
 let rankingError = "";
 const RANKING_BATCH_SIZE = 20;
@@ -325,13 +325,12 @@ function renderRankings() {
     });
     const status = document.querySelector("#ranking-status");
     const updated = document.querySelector("#ranking-updated-time");
-    updated.textContent = rankingUpdatedAt
-        ? new Intl.DateTimeFormat("sv-SE", {
-            timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
-            hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
-        }).format(new Date(rankingUpdatedAt))
-        : "等待首次更新";
-    if (rankingUpdatedAt) updated.dateTime = new Date(rankingUpdatedAt).toISOString();
+    // MySQL DATETIME is returned unchanged; browser fetch time is only used for cache expiry.
+    updated.textContent = board?.updatedAt
+        ? board.updatedAt.replace("T", " ").slice(0, 19)
+        : "暂无数据更新时间";
+    if (board?.updatedAt) updated.dateTime = board.updatedAt;
+    else updated.removeAttribute("datetime");
     const first = board?.projects[0];
     status.textContent = rankingError
         ? `${rankingError}${rankings ? "，保留上次结果" : ""}`
@@ -399,14 +398,14 @@ function observeRankingEnd(total) {
 
 async function loadRankings(force = false) {
     if (rankingRequest) return rankingRequest;
-    if (!force && rankings && Date.now() - rankingUpdatedAt < 30000) {
+    if (!force && rankings && Date.now() - rankingFetchedAt < 30000) {
         renderRankings();
         return;
     }
     rankingRequest = (async () => {
         try {
             rankings = await api("/api/project-rankings");
-            rankingUpdatedAt = Date.now();
+            rankingFetchedAt = Date.now();
             rankingError = "";
         } catch (error) {
             rankingError = error.message;

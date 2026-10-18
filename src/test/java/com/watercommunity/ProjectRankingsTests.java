@@ -30,7 +30,8 @@ class ProjectRankingsTests {
                     project_id VARCHAR(64), user_id VARCHAR(64), heat_score BIGINT,
                     like_count BIGINT DEFAULT 1, comment_count BIGINT DEFAULT 2,
                     share_count BIGINT DEFAULT 3, follow_count BIGINT DEFAULT 4, view_page_count BIGINT DEFAULT 5,
-                    window_type INT, score_version BIGINT, window_start TIMESTAMP, window_end TIMESTAMP)
+                    window_type INT, score_version BIGINT, window_start TIMESTAMP, window_end TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT TIMESTAMP '2001-01-01 00:00:00')
                 """);
         jdbc.execute("CREATE TABLE projects(id VARCHAR(64) PRIMARY KEY, name VARCHAR(64), image_asset_id VARCHAR(64))");
         jdbc.execute("CREATE TABLE community_users(id VARCHAR(64) PRIMARY KEY, nickname VARCHAR(64), selectable BOOLEAN)");
@@ -79,6 +80,21 @@ class ProjectRankingsTests {
             assertThat(sql.split("FORCE INDEX", -1)).hasSize(3);
             assertThat(sql).doesNotContain("NOW(", "SUM(", "GROUP BY");
         });
+    }
+
+    @Test
+    void updateTimeComesFromReturnedDatabaseRowsPerWindow() {
+        for (int index = 1; index <= 101; index++) {
+            row(1, 4, "2001-01-01 00:00:00", "2001-01-01 01:00:00", "p%03d".formatted(index), 2000 - index);
+        }
+        row(2, 4, "2001-01-01 00:00:00", "2001-01-02 00:00:00", "day", 1000);
+        jdbc.update("UPDATE water_analytics.project_engagement_stats SET updated_at='2001-01-01 00:12:34.567' WHERE project_id='p050'");
+        jdbc.update("UPDATE water_analytics.project_engagement_stats SET updated_at='2001-01-01 00:30:00' WHERE project_id='p101'");
+        var result = service.rankings();
+        assertThat(result.windows().get(0).updatedAt()).isEqualTo(java.time.LocalDateTime.parse("2001-01-01T00:12:34.567"));
+        assertThat(result.windows().get(1).updatedAt()).isEqualTo(java.time.LocalDateTime.parse("2001-01-01T00:00:00"));
+        assertThat(result.windows().get(2).updatedAt()).isNull();
+        assertThat(service.rankings().windows().get(0).updatedAt()).isEqualTo(result.windows().get(0).updatedAt());
     }
 
     @Test

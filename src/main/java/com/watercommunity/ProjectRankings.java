@@ -9,17 +9,19 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 record RankedProject(
         String projectId, String userId, BigDecimal heatScore,
         long likeCount, long commentCount, long shareCount, long followCount, long viewPageCount,
-        String windowStart, String windowEnd,
+        String windowStart, String windowEnd, LocalDateTime updatedAt,
         String projectName, String nickname, String avatarUrl, String imageUrl
 ) {}
 
-record RankingWindow(int windowType, String label, List<RankedProject> projects) {}
+record RankingWindow(int windowType, String label, LocalDateTime updatedAt, List<RankedProject> projects) {}
 
 record RankingsResponse(Long scoreVersion, List<RankingWindow> windows) {}
 
@@ -42,7 +44,7 @@ class ProjectRankingService {
                         END AS image_url
             FROM (
                 SELECT project_id, user_id, heat_score,
-                       like_count, comment_count, share_count, follow_count, view_page_count,
+                       like_count, comment_count, share_count, follow_count, view_page_count, updated_at,
                        DATE_FORMAT(window_start, '%Y-%m-%d %H:%i:%s') AS window_start,
                        DATE_FORMAT(window_end, '%Y-%m-%d %H:%i:%s') AS window_end
                 FROM water_analytics.project_engagement_stats
@@ -84,10 +86,13 @@ class ProjectRankingService {
                                 rs.getLong("like_count"), rs.getLong("comment_count"),
                                 rs.getLong("share_count"), rs.getLong("follow_count"), rs.getLong("view_page_count"),
                                 rs.getString("window_start"), rs.getString("window_end"),
+                                rs.getObject("updated_at", LocalDateTime.class),
                                 rs.getString("project_name"), rs.getString("nickname"),
                                 rs.getString("avatar_url"), rs.getString("image_url")),
                         type, version, type, version);
-                windows.add(new RankingWindow(type, labels.get(type - 1), projects));
+                LocalDateTime updatedAt = projects.stream().map(RankedProject::updatedAt)
+                        .filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(null);
+                windows.add(new RankingWindow(type, labels.get(type - 1), updatedAt, projects));
             }
             return new RankingsResponse(version, windows);
         } catch (DataAccessException exception) {

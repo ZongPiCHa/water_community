@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#f7f7f3">
     <meta name="description" content="水集，一个用于模拟创作、分享与互动的灵感社区。">
     <title>水集 · 创作社区</title>
-    <link rel="stylesheet" href="/styles.css?v=ranking-update-time">
+    <link rel="stylesheet" href="/styles.css?v=ranking-db-time">
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
-    <script src="/app.js?v=ranking-update-time" defer></script>
+    <script src="/app.js?v=ranking-db-time" defer></script>
 </head>
 <body>
 <header class="topbar">
@@ -84,7 +84,7 @@
                 <button type="button" data-window="4" aria-pressed="false">周榜</button>
             </div>
             <p id="ranking-status" role="status">每 30 秒更新 · 各窗口 Top 100</p>
-            <p id="ranking-updated">最近更新时间：<time id="ranking-updated-time">等待首次更新</time>（北京时间）</p>
+            <p id="ranking-updated" title="当前榜单 Top 100 记录中最新的 MySQL updated_at">最近更新时间：<time id="ranking-updated-time">等待首次更新</time></p>
         </div>
         <div class="feed" id="project-feed" aria-live="polite"></div>
     </section>
