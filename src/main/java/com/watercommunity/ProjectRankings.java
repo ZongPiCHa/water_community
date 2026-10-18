@@ -29,7 +29,7 @@ class ProjectRankingService {
             SELECT version FROM water_analytics.heat_score_rule WHERE status = 1 LIMIT 1
             """;
 
-    // LIMIT is inside the derived table: missing community metadata must never change the Top 5.
+    // LIMIT is inside the derived table: missing community metadata must never change the Top 100.
     // Metadata joins add no extra round trips and never aggregate or recalculate analytics scores.
     static final String RANK_SQL = """
             SELECT ranked.*,
@@ -55,7 +55,7 @@ class ProjectRankingService {
                       WHERE window_type = ? AND score_version = ?
                       ORDER BY window_start DESC LIMIT 1
                   )
-                ORDER BY heat_score DESC, project_id ASC LIMIT 5
+                ORDER BY heat_score DESC, project_id ASC LIMIT 100
             ) ranked
             LEFT JOIN projects p ON p.id = ranked.project_id
             LEFT JOIN community_users u ON u.id = ranked.user_id

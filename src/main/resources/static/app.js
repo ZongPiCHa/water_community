@@ -18,6 +18,8 @@ let rankingRequest = null;
 let rankingUpdatedAt = 0;
 let rankingWindow = 1;
 let rankingError = "";
+const RANKING_BATCH_SIZE = 20;
+const rankingVisible = {1: RANKING_BATCH_SIZE, 2: RANKING_BATCH_SIZE, 3: RANKING_BATCH_SIZE, 4: RANKING_BATCH_SIZE};
 
 const elements = {
     usersGrid: document.querySelector("#users-grid"),
@@ -314,6 +316,7 @@ function renderProjects() {
 function renderRankings() {
     if (state.sort !== "heat") return;
     feedEndObserver?.disconnect();
+    rankingEndObserver.disconnect();
     const board = rankings?.windows.find((window) => window.windowType === rankingWindow);
     document.querySelectorAll("[data-window]").forEach((button) => {
         const active = Number(button.dataset.window) === rankingWindow;
@@ -326,7 +329,7 @@ function renderRankings() {
         ? `${rankingError}${rankings ? "，保留上次结果" : ""}`
         : first
             ? `${first.windowStart} — ${first.windowEnd} · 最新有数据的窗口 · 每 30 秒更新`
-            : "各窗口 Top 5 · 每 30 秒更新";
+            : "各窗口 Top 100 · 每 30 秒更新";
     if (!rankings) {
         elements.projectFeed.innerHTML = `<div class="empty-state"><div><h2>${rankingError ? "热度榜暂不可用" : "正在载入热度榜…"}</h2><p>${escapeHtml(rankingError)}</p></div></div>`;
         return;
@@ -335,9 +338,15 @@ function renderRankings() {
         elements.projectFeed.innerHTML = `<div class="empty-state"><div><h2>${rankings.scoreVersion == null ? "暂无生效的热度规则" : "该窗口暂无排名"}</h2><p>有数据后将自动更新。</p></div></div>`;
         return;
     }
-    elements.projectFeed.innerHTML = board.projects.map((project, index) => `
+    elements.projectFeed.innerHTML = board.projects.slice(0, rankingVisible[rankingWindow])
+        .map(rankingCard).join("");
+    observeRankingEnd(board.projects.length);
+}
+
+function rankingCard(project, index) {
+    return `
         <article class="project-card ranking-card" data-ranked-project="${escapeHtml(project.projectId)}">
-            ${project.imageUrl ? `<div class="project-image-wrap"><img class="project-image" src="${escapeHtml(project.imageUrl)}" alt="${escapeHtml(project.projectName || project.projectId)}"><span class="project-number">TOP ${index + 1}</span></div>` : `<p class="ranking-position">TOP ${index + 1}</p>`}
+            ${project.imageUrl ? `<div class="project-image-wrap"><img class="project-image" loading="lazy" src="${escapeHtml(project.imageUrl)}" alt="${escapeHtml(project.projectName || project.projectId)}"><span class="project-number">TOP ${index + 1}</span></div>` : `<p class="ranking-position">TOP ${index + 1}</p>`}
             <div class="project-body">
                 <div class="author-main">
                     ${project.avatarUrl ? `<img class="avatar" src="${escapeHtml(project.avatarUrl)}" alt="">` : ""}
@@ -352,7 +361,32 @@ function renderRankings() {
                 </div>
             </div>
         </article>
-    `).join("");
+    `;
+}
+
+const rankingEndObserver = new IntersectionObserver((entries) => {
+    if (state.sort !== "heat" || !document.querySelector("#view-community").classList.contains("is-active")) return;
+    if (!entries.some((entry) => entry.isIntersecting && entry.target.isConnected)) return;
+    const board = rankings?.windows.find((window) => window.windowType === rankingWindow);
+    if (!board) return;
+    const shown = elements.projectFeed.querySelectorAll("[data-ranked-project]").length;
+    if (shown >= board.projects.length) return;
+    rankingVisible[rankingWindow] = Math.min(shown + RANKING_BATCH_SIZE, board.projects.length);
+    elements.projectFeed.querySelector("[data-ranking-end]")?.remove();
+    elements.projectFeed.insertAdjacentHTML("beforeend", board.projects
+        .slice(shown, rankingVisible[rankingWindow])
+        .map((project, index) => rankingCard(project, shown + index)).join(""));
+    observeRankingEnd(board.projects.length);
+}, {rootMargin: "300px"});
+
+function observeRankingEnd(total) {
+    rankingEndObserver.disconnect();
+    const shown = Math.min(rankingVisible[rankingWindow], total);
+    elements.projectFeed.insertAdjacentHTML("beforeend",
+        `<div class="feed-more" data-ranking-end role="status">${shown < total
+            ? `已显示 ${shown} / ${total}，继续下滑加载`
+            : `已显示全部 ${total} 个作品`}</div>`);
+    if (shown < total) rankingEndObserver.observe(elements.projectFeed.querySelector("[data-ranking-end]"));
 }
 
 async function loadRankings(force = false) {
@@ -421,6 +455,7 @@ async function loadMoreProjects() {
 async function loadProjects() {
     const request = ++feedRequest;
     feedEndObserver?.disconnect();
+    rankingEndObserver.disconnect();
     document.querySelector("#ranking-controls").hidden = state.sort !== "heat";
     if (state.sort === "heat") {
         state.hasMore = false;

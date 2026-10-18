@@ -35,7 +35,7 @@ class ProjectRankingsTests {
         jdbc.execute("CREATE TABLE projects(id VARCHAR(64) PRIMARY KEY, name VARCHAR(64), image_asset_id VARCHAR(64))");
         jdbc.execute("CREATE TABLE community_users(id VARCHAR(64) PRIMARY KEY, nickname VARCHAR(64), selectable BOOLEAN)");
         jdbc.update("INSERT INTO water_analytics.heat_score_rule VALUES(4,1),(5,0)");
-        jdbc.update("INSERT INTO projects VALUES('p1','风景一','a1')");
+        jdbc.update("INSERT INTO projects VALUES('p001','风景一','a1')");
         jdbc.update("INSERT INTO community_users VALUES('u1','云舒',TRUE)");
     }
 
@@ -48,7 +48,7 @@ class ProjectRankingsTests {
     }
 
     @Test
-    void latestAvailableWindowActiveVersionTopFiveAndPrecision() {
+    void latestAvailableWindowActiveVersionTopHundredAndPrecision() {
         for (int type = 1; type <= 4; type++) {
             // A newer inactive-version row and a very hot older row must both be ignored.
             row(type, 5, "2099-01-01 00:00:00", "2099-01-02 00:00:00", "inactive", 999999);
@@ -56,7 +56,7 @@ class ProjectRankingsTests {
             // Past windows and future/unclosed windows are both valid; no NOW() filtering.
             String start = type == 4 ? "2098-01-01 00:00:00" : "2001-01-01 00:00:00";
             String end = type == 4 ? "2098-01-08 00:00:00" : "2001-01-04 00:00:00";
-            for (int index = 6; index >= 1; index--) row(type, 4, start, end, "p" + index, 17300);
+            for (int index = 105; index >= 1; index--) row(type, 4, start, end, "p%03d".formatted(index), 17300);
             row(type, 4, start, end, "low", 17299);
         }
         var result = service.rankings();
@@ -64,13 +64,14 @@ class ProjectRankingsTests {
         assertThat(result.windows()).hasSize(4);
         for (var window : result.windows()) {
             assertThat(window.projects()).extracting(RankedProject::projectId)
-                    .containsExactly("p1", "p2", "p3", "p4", "p5");
+                    .containsExactlyElementsOf(java.util.stream.IntStream.rangeClosed(1, 100)
+                            .mapToObj(index -> "p%03d".formatted(index)).toList());
             var first = window.projects().get(0);
             assertThat(first.heatScore()).isEqualByComparingTo("17.3");
             assertThat(first.projectName()).isEqualTo("风景一");
             assertThat(first.nickname()).isEqualTo("云舒");
             assertThat(first.viewPageCount()).isEqualTo(5);
-            assertThat(window.projects().get(1).projectName()).isNull(); // Keep unmatched Top 5 IDs.
+            assertThat(window.projects().get(1).projectName()).isNull(); // Keep unmatched Top 100 IDs.
         }
         assertThat(result.windows().get(3).projects().get(0).windowStart()).startsWith("2098-01-01");
         assertThat(jdbc.reads).hasSize(5);
