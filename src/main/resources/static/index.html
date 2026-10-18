@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#f7f7f3">
     <meta name="description" content="水集，一个用于模拟创作、分享与互动的灵感社区。">
     <title>水集 · 创作社区</title>
-    <link rel="stylesheet" href="/styles.css?v=heat-top100">
+    <link rel="stylesheet" href="/styles.css?v=ranking-update-time">
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
-    <script src="/app.js?v=heat-top100" defer></script>
+    <script src="/app.js?v=ranking-update-time" defer></script>
 </head>
 <body>
 <header class="topbar">
@@ -18,8 +18,8 @@
     </a>
 
     <nav class="tabs" aria-label="主要页面">
-        <button class="tab is-active" type="button" data-view="users">选取用户</button>
-        <button class="tab" type="button" data-view="community">社区</button>
+        <button class="tab" type="button" data-view="users">选取用户</button>
+        <button class="tab is-active" type="button" data-view="community">社区</button>
         <button class="tab" type="button" data-view="profile">我</button>
     </nav>
 
@@ -38,7 +38,7 @@
 </header>
 
 <main>
-    <section class="view is-active" id="view-users" aria-labelledby="hero-title">
+    <section class="view" id="view-users" aria-labelledby="hero-title">
         <div class="hero" id="hero">
             <div class="hero-shade"></div>
             <div class="hero-content">
@@ -65,7 +65,7 @@
         </div>
     </section>
 
-    <section class="view" id="view-community" aria-labelledby="community-title">
+    <section class="view is-active" id="view-community" aria-labelledby="community-title">
         <div class="community-header">
             <div>
                 <p class="eyebrow">COMMUNITY STREAM</p>
@@ -84,6 +84,7 @@
                 <button type="button" data-window="4" aria-pressed="false">周榜</button>
             </div>
             <p id="ranking-status" role="status">每 30 秒更新 · 各窗口 Top 100</p>
+            <p id="ranking-updated">最近更新时间：<time id="ranking-updated-time">等待首次更新</time>（北京时间）</p>
         </div>
         <div class="feed" id="project-feed" aria-live="polite"></div>
     </section>

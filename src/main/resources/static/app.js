@@ -324,6 +324,14 @@ function renderRankings() {
         button.setAttribute("aria-pressed", String(active));
     });
     const status = document.querySelector("#ranking-status");
+    const updated = document.querySelector("#ranking-updated-time");
+    updated.textContent = rankingUpdatedAt
+        ? new Intl.DateTimeFormat("sv-SE", {
+            timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
+            hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+        }).format(new Date(rankingUpdatedAt))
+        : "等待首次更新";
+    if (rankingUpdatedAt) updated.dateTime = new Date(rankingUpdatedAt).toISOString();
     const first = board?.projects[0];
     status.textContent = rankingError
         ? `${rankingError}${rankings ? "，保留上次结果" : ""}`
@@ -808,6 +816,7 @@ elements.publishDialog.addEventListener("click", (event) => {
 });
 
 async function init() {
+    showView("community");
     document.querySelector("#hero").style.backgroundImage = 'url("/generated/hero-optimized.jpg")';
     showLoading(elements.usersGrid, "正在准备人物…");
     try {

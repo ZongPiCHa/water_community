@@ -1401,7 +1401,8 @@ img {
     flex-wrap: wrap;
 }
 
-#ranking-status {
+#ranking-status,
+#ranking-updated {
     color: var(--muted);
     font-size: 12px;
     line-height: 1.7;
