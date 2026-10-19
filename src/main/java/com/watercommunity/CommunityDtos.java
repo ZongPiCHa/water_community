@@ -66,6 +66,9 @@ record ProjectResponse(
 ) {
 }
 
+record CommentPageResponse(List<CommentResponse> comments, boolean hasMore) {
+}
+
 record ProfileResponse(
         UserResponse user,
         long receivedLikeCount,

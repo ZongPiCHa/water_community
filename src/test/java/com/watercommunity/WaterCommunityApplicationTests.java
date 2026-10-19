@@ -21,7 +21,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -40,6 +39,81 @@ class WaterCommunityApplicationTests {
 
     @Autowired
     private ProjectShareRepository shareRepository;
+
+    @Test
+    void detailAndPreviewsReflectViewerAndLiveCounts() throws Exception {
+        String project = "p000000000000001";
+        String viewer = "u000000000000001";
+        mockMvc.perform(post("/api/projects/" + project + "/likes").header("X-User-Id", viewer))
+                .andExpect(status().isOk());
+        String detail = mockMvc.perform(get("/api/projects/" + project).header("X-User-Id", viewer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.likeCount", is(9)))
+                .andExpect(jsonPath("$.likedByMe", is(true)))
+                .andExpect(jsonPath("$.recentComments", hasSize(2)))
+                .andReturn().getResponse().getContentAsString();
+        String previews = mockMvc.perform(get("/api/projects/previews")
+                        .param("ids", project + ",missing-historical-id")
+                        .header("X-User-Id", viewer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(previews).isEqualTo("[" + detail + "]");
+        mockMvc.perform(get("/api/projects/" + project))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.likedByMe", is(false)));
+    }
+
+    @Test
+    void commentsArePagedAndDeletedCommentsDisappearFromDetail() throws Exception {
+        String project = "p000000000100001";
+        String viewer = "u000000000000001";
+        String commentId = "";
+        for (int i = 0; i < 3; i++) {
+            String body = mockMvc.perform(post("/api/projects/" + project + "/comments")
+                            .header("X-User-Id", viewer)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"content\":\"详情分页" + i + "\"}"))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            commentId = body.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        }
+        String first = mockMvc.perform(get("/api/projects/" + project + "/comments?size=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments", hasSize(2)))
+                .andExpect(jsonPath("$.hasMore", is(true)))
+                .andReturn().getResponse().getContentAsString();
+        String second = mockMvc.perform(get("/api/projects/" + project + "/comments?size=2&page=1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments", hasSize(1)))
+                .andExpect(jsonPath("$.hasMore", is(false)))
+                .andReturn().getResponse().getContentAsString();
+        String secondId = second.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1");
+        assertThat(first).doesNotContain(secondId);
+        mockMvc.perform(delete("/api/projects/" + project + "/comments/" + commentId).header("X-User-Id", viewer))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/projects/" + project))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.commentCount", is(2)));
+        mockMvc.perform(get("/api/projects/" + project + "/comments?size=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasMore", is(false)));
+    }
+
+    @Test
+    void unavailableProjectReturnsNotFound() throws Exception {
+        mockMvc.perform(get("/api/projects/missing"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/projects/missing/comments"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void previewBatchSizeIsBounded() throws Exception {
+        mockMvc.perform(get("/api/projects/previews")
+                        .param("ids", String.join(",", java.util.Collections.nCopies(51, "p000000000000001"))))
+                .andExpect(status().isBadRequest());
+    }
 
     @Test
     void seededCommunityCanBeRead() throws Exception {

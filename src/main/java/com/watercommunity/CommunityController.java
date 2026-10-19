@@ -46,6 +46,31 @@ class CommunityController {
         return communityService.projects(viewerId, sort, page, size);
     }
 
+    @GetMapping("/projects/previews")
+    List<ProjectResponse> previews(
+            @RequestHeader(value = "X-User-Id", required = false) String viewerId,
+            @RequestParam List<String> ids
+    ) {
+        return communityService.previews(viewerId, ids);
+    }
+
+    @GetMapping("/projects/{projectId}")
+    ProjectResponse project(
+            @RequestHeader(value = "X-User-Id", required = false) String viewerId,
+            @PathVariable String projectId
+    ) {
+        return communityService.project(viewerId, projectId);
+    }
+
+    @GetMapping("/projects/{projectId}/comments")
+    CommentPageResponse comments(
+            @PathVariable String projectId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return communityService.comments(projectId, page, size);
+    }
+
     // Lightweight id lists so the traffic simulator can act on real users and projects.
     @GetMapping("/simulation/catalog")
     SimulationCatalog simulationCatalog() {

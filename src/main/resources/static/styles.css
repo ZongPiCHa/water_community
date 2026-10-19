@@ -522,6 +522,7 @@ img {
 }
 
 .project-image-wrap {
+    display: block;
     position: relative;
     overflow: hidden;
     background: #d8d9d4;
@@ -1432,6 +1433,83 @@ img {
 .ranking-position {
     padding: 12px 20px 0;
     color: var(--green);
+}
+
+body.detail-open {
+    overflow: hidden;
+}
+
+.project-detail {
+    width: min(860px, calc(100vw - 32px));
+    max-height: calc(100dvh - 40px);
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow);
+}
+
+.project-detail::backdrop {
+    background: rgba(15, 22, 18, 0.6);
+}
+
+.project-detail .dialog-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 16px 24px;
+    background: var(--surface);
+}
+
+.project-detail .dialog-header h2 {
+    font-size: 22px;
+}
+
+.project-detail .project-card {
+    border: 0;
+    border-radius: 0;
+}
+
+.project-detail .project-image {
+    max-height: 55dvh;
+    aspect-ratio: auto;
+    object-fit: contain;
+    transform: none;
+}
+
+.project-detail .project-body {
+    padding: 24px;
+}
+
+.project-detail .project-description {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 14px;
+}
+
+.project-detail .comment-row p,
+.project-detail .comment-form input,
+.project-detail .action-button {
+    font-size: 13px;
+}
+
+.detail-comments-heading {
+    margin-top: 24px;
+    font-size: 15px;
+}
+
+.detail-more {
+    margin: 16px 0;
+    padding: 8px 16px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--paper);
+    cursor: pointer;
+}
+
+.project-detail .comment-list {
+    gap: 16px;
 }
 
 @media (prefers-reduced-motion: reduce) {

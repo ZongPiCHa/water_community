@@ -1,6 +1,7 @@
 package com.watercommunity;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -20,6 +21,9 @@ interface ImageAssetRepository extends JpaRepository<ImageAsset, String> {
 }
 
 interface ProjectRepository extends JpaRepository<Project, String> {
+    @EntityGraph(attributePaths = {"user", "imageAsset"})
+    List<Project> findByIdIn(List<String> ids);
+
     @EntityGraph(attributePaths = {"user", "imageAsset"})
     List<Project> findAllByOrderByCreatedAtDescIdAsc(Pageable pageable);
 
@@ -48,6 +52,9 @@ interface ProjectLikeRepository extends JpaRepository<ProjectLike, String> {
 }
 
 interface ProjectCommentRepository extends JpaRepository<ProjectComment, String> {
+    @EntityGraph(attributePaths = "user")
+    Slice<ProjectComment> findByProjectIdOrderByCreatedAtDescIdDesc(String projectId, Pageable pageable);
+
     long countByProjectId(String projectId);
 
     List<ProjectComment> findTop2ByProjectIdOrderByCreatedAtDesc(String projectId);

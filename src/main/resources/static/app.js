@@ -20,6 +20,14 @@ let rankingWindow = 1;
 let rankingError = "";
 const RANKING_BATCH_SIZE = 20;
 const rankingVisible = {1: RANKING_BATCH_SIZE, 2: RANKING_BATCH_SIZE, 3: RANKING_BATCH_SIZE, 4: RANKING_BATCH_SIZE};
+const projectPreviews = new Map();
+let previewPending = new Set();
+let previewStale = new Set();
+let previewRevision = 0;
+let detail = null;
+let detailRequest = 0;
+let detailHasHistory = false;
+let detailLoading = false;
 
 const elements = {
     usersGrid: document.querySelector("#users-grid"),
@@ -146,6 +154,7 @@ function updateCurrentUserControl() {
 }
 
 function showView(viewName) {
+    if (document.querySelector("#project-detail").open) closeProjectDetail();
     if (viewName === "profile" && !state.currentUserId) {
         toast("请先选择一个用户", true);
         viewName = "users";
@@ -218,7 +227,7 @@ function relativeTime(value) {
     return new Intl.DateTimeFormat("zh-CN", {month: "short", day: "numeric"}).format(new Date(value));
 }
 
-function projectCard(project, index) {
+function projectCard(project, index, {rank = null, detailView = false} = {}) {
     const isOwn = project.author.id === state.currentUserId;
     const followButton = state.currentUserId && !isOwn
         ? `<button class="follow-button${project.author.followedByMe ? " is-following" : ""}"
@@ -244,14 +253,14 @@ function projectCard(project, index) {
     `).join("");
 
     return `
-        <article class="project-card" data-project-card="${project.id}">
-            <div class="project-image-wrap" style="background:${project.asset.accentColor}">
+        <article class="project-card${rank ? " ranking-card" : ""}" data-project-card="${project.id}" ${rank ? `data-ranked-project="${project.id}"` : ""}>
+            <${detailView ? "div" : "a"} class="project-image-wrap" ${detailView ? "" : `href="#project-${project.id}" data-open-project="${project.id}" aria-label="查看《${escapeHtml(project.name)}》详情"`} style="background:${project.asset.accentColor}">
                 <img class="project-image"
                      src="${assetUrl(project.asset)}"
                      alt="${escapeHtml(project.asset.altText)}"
                      data-fallback="${project.asset.accentColor}">
-                <span class="project-number">${String(index + 1).padStart(2, "0")}</span>
-            </div>
+                ${detailView ? "" : `<span class="project-number">${rank ? "TOP " : ""}${String(index + 1).padStart(2, "0")}</span>`}
+            </${detailView ? "div" : "a"}>
             <div class="project-body">
                 <div class="author-row">
                     <div class="author-main">
@@ -266,7 +275,8 @@ function projectCard(project, index) {
                 </div>
                 <h2 class="project-title">${escapeHtml(project.name)}</h2>
                 <p class="project-description">${escapeHtml(project.description || "一页没有附注的灵感。")}</p>
-                <time class="project-time" datetime="${project.createdAt}">${relativeTime(project.createdAt)}</time>
+                <time class="project-time" datetime="${project.createdAt}">${detailView ? escapeHtml(project.createdAt.replace("T", " ").slice(0, 19)) : relativeTime(project.createdAt)}</time>
+                ${rank ? rankingStats(rank) : ""}
                 <div class="project-actions">
                     <button class="action-button${project.likedByMe ? " is-active" : ""}"
                             type="button"
@@ -284,7 +294,9 @@ function projectCard(project, index) {
                         <span>${project.shareCount}</span>
                     </button>
                 </div>
-                ${comments ? `<div class="comment-list">${comments}</div>` : ""}
+                ${detailView ? `<h3 class="detail-comments-heading">评论 · ${project.commentCount}</h3>` : ""}
+                ${comments ? `<div class="comment-list">${comments}</div>` : detailView ? '<p class="project-description">还没有评论，来写第一条吧。</p>' : ""}
+                ${detailView && detail?.hasMore ? '<button type="button" class="detail-more" data-more-comments>加载更多评论</button>' : ""}
                 <form class="comment-form" data-comment-form="${project.id}">
                     <input type="text" name="content" maxlength="240" autocomplete="off" placeholder="写下评论" aria-label="评论内容">
                     <button type="submit" aria-label="发送评论" title="发送评论">
@@ -296,6 +308,168 @@ function projectCard(project, index) {
     `;
 }
 
+function rankingStats(project) {
+    return `<p class="ranking-heat">热度 <strong>${new Intl.NumberFormat("zh-CN", {maximumFractionDigits: 3}).format(project.heatScore)}</strong></p>
+        <div class="ranking-counts" aria-label="窗口内互动统计">
+            <span>窗口内 · 点赞 ${project.likeCount}</span><span>评论 ${project.commentCount}</span>
+            <span>转发 ${project.shareCount}</span><span>关注 ${project.followCount}</span>
+            <span>浏览 ${project.viewPageCount}</span>
+        </div>`;
+}
+
+// Keep drafts and focus when refreshed counts replace a card.
+function preserveCommentDrafts(scope, render) {
+    const inputs = [...scope.querySelectorAll("[data-comment-form] input")].map((input) => ({
+        id: input.form.dataset.commentForm, value: input.value,
+        focused: input === document.activeElement, start: input.selectionStart, end: input.selectionEnd
+    }));
+    render();
+    inputs.forEach((saved) => {
+        const input = scope.querySelector(`[data-comment-form="${saved.id}"] input`);
+        if (!input) return;
+        input.value = saved.value;
+        if (saved.focused) {
+            input.focus({preventScroll: true});
+            input.setSelectionRange(saved.start, saved.end);
+        }
+    });
+}
+
+async function loadRankingPreviews() {
+    const board = rankings?.windows.find((window) => window.windowType === rankingWindow);
+    const ids = board?.projects.slice(0, rankingVisible[rankingWindow])
+        .map((project) => project.projectId)
+        .filter((id) => (!projectPreviews.has(id) || previewStale.has(id)) && !previewPending.has(id)) || [];
+    const revision = previewRevision;
+    ids.forEach((id) => previewPending.add(id));
+    for (let offset = 0; offset < ids.length; offset += 50) {
+        const batch = ids.slice(offset, offset + 50);
+        try {
+            const projects = await api(`/api/projects/previews?ids=${encodeURIComponent(batch.join(","))}`);
+            if (revision !== previewRevision) return;
+            batch.forEach((id) => projectPreviews.set(id, null));
+            batch.forEach((id) => previewStale.delete(id));
+            projects.forEach((project) => projectPreviews.set(project.id, project));
+            if (state.sort === "heat") {
+                const currentBoard = rankings?.windows.find((window) => window.windowType === rankingWindow);
+                currentBoard?.projects.forEach((rank, index) => {
+                    const card = elements.projectFeed.querySelector(`[data-ranked-project="${rank.projectId}"]`);
+                    if (card && batch.includes(rank.projectId)) {
+                        preserveCommentDrafts(elements.projectFeed, () => { card.outerHTML = rankingCard(rank, index); });
+                    }
+                });
+                refreshIcons();
+                attachImageFallbacks(elements.projectFeed);
+            }
+        } catch (error) {
+            if (revision === previewRevision) toast(`互动预览加载失败：${error.message}`, true);
+        } finally {
+            if (revision === previewRevision) batch.forEach((id) => previewPending.delete(id));
+        }
+    }
+}
+
+function resetPreviews(keepVisible = false) {
+    previewRevision++;
+    previewPending = new Set();
+    previewStale = keepVisible ? new Set(projectPreviews.keys()) : new Set();
+    if (!keepVisible) projectPreviews.clear();
+}
+
+function knownProjects() {
+    return [...state.projects, ...projectPreviews.values(), detail?.project].filter(Boolean);
+}
+
+async function refreshProject(projectId) {
+    const viewer = state.currentUserId;
+    const project = await api(`/api/projects/${projectId}`);
+    if (viewer !== state.currentUserId) return;
+    projectPreviews.set(projectId, project);
+    state.projects = state.projects.map((item) => item.id === projectId ? project : item);
+    const card = elements.projectFeed.querySelector(`[data-project-card="${projectId}"]`);
+    if (card) {
+        const board = rankings?.windows.find((window) => window.windowType === rankingWindow);
+        const index = state.sort === "heat" ? board.projects.findIndex((item) => item.projectId === projectId)
+            : state.projects.findIndex((item) => item.id === projectId);
+        preserveCommentDrafts(elements.projectFeed, () => {
+            card.outerHTML = state.sort === "heat" ? rankingCard(board.projects[index], index) : projectCard(project, index);
+        });
+        refreshIcons();
+        attachImageFallbacks(elements.projectFeed);
+    }
+    if (detail?.project.id === projectId) await openProjectDetail(projectId, false);
+}
+
+function renderDetail() {
+    if (!detail) return;
+    const content = document.querySelector("#detail-content");
+    preserveCommentDrafts(content, () => {
+        content.innerHTML = projectCard({...detail.project, recentComments: detail.comments}, 0, {detailView: true});
+    });
+    refreshIcons();
+    attachImageFallbacks(content);
+}
+
+async function openProjectDetail(projectId, navigate = true) {
+    const request = ++detailRequest;
+    const dialog = document.querySelector("#project-detail");
+    if (!dialog.open) {
+        document.body.classList.add("detail-open");
+        dialog.showModal();
+    }
+    if (navigate && location.hash !== `#project-${projectId}`) {
+        history.pushState(null, "", `#project-${projectId}`);
+        detailHasHistory = true;
+    }
+    if (detail?.project.id !== projectId) {
+        detail = null;
+        showLoading(document.querySelector("#detail-content"), "正在载入作品详情…");
+    }
+    try {
+        const project = await api(`/api/projects/${encodeURIComponent(projectId)}`);
+        const comments = await api(`/api/projects/${encodeURIComponent(projectId)}/comments?size=20`);
+        if (request !== detailRequest) return;
+        detail = {project, comments: comments.comments, hasMore: comments.hasMore, page: 0};
+        renderDetail();
+    } catch (error) {
+        if (request !== detailRequest) return;
+        document.querySelector("#detail-content").innerHTML = `<div class="empty-state"><div><h2>暂时无法查看作品</h2><p>${escapeHtml(error.message)}</p><button type="button" class="detail-more" data-open-project="${escapeHtml(projectId)}">重新加载</button></div></div>`;
+    }
+}
+
+async function loadMoreComments(button) {
+    if (!detail || !detail.hasMore || detailLoading) return;
+    const current = detail;
+    detailLoading = true;
+    button.disabled = true;
+    try {
+        const result = await api(`/api/projects/${current.project.id}/comments?page=${current.page + 1}&size=20`);
+        if (detail !== current) return;
+        const ids = new Set(detail.comments.map((comment) => comment.id));
+        detail.comments.push(...result.comments.filter((comment) => !ids.has(comment.id)));
+        detail.page++;
+        detail.hasMore = result.hasMore;
+        renderDetail();
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        detailLoading = false;
+        button.disabled = false;
+    }
+}
+
+function closeProjectDetail(navigate = true) {
+    ++detailRequest;
+    detail = null;
+    document.querySelector("#project-detail").close();
+    document.body.classList.remove("detail-open");
+    if (navigate && location.hash.startsWith("#project-")) {
+        if (detailHasHistory) history.back();
+        else history.replaceState(null, "", location.pathname + location.search);
+    }
+    detailHasHistory = false;
+}
+
 function renderProjects() {
     if (!state.projects.length) {
         elements.projectFeed.innerHTML = `
@@ -304,10 +478,12 @@ function renderProjects() {
             </div>`;
         return;
     }
-    elements.projectFeed.innerHTML = state.projects.map(projectCard).join("")
-        + (state.hasMore
-            ? `<div class="feed-more"><button class="submit-button" type="button" data-load-more>加载更多作品</button></div>`
-            : "");
+    preserveCommentDrafts(elements.projectFeed, () => {
+        elements.projectFeed.innerHTML = state.projects.map(projectCard).join("")
+            + (state.hasMore
+                ? `<div class="feed-more"><button class="submit-button" type="button" data-load-more>加载更多作品</button></div>`
+                : "");
+    });
     refreshIcons();
     attachImageFallbacks(elements.projectFeed);
     observeFeedEnd();
@@ -345,33 +521,37 @@ function renderRankings() {
         elements.projectFeed.innerHTML = `<div class="empty-state"><div><h2>${rankings.scoreVersion == null ? "暂无生效的热度规则" : "该窗口暂无排名"}</h2><p>有数据后将自动更新。</p></div></div>`;
         return;
     }
-    elements.projectFeed.innerHTML = board.projects.slice(0, rankingVisible[rankingWindow])
-        .map(rankingCard).join("");
+    preserveCommentDrafts(elements.projectFeed, () => {
+        elements.projectFeed.innerHTML = board.projects.slice(0, rankingVisible[rankingWindow])
+            .map(rankingCard).join("");
+    });
+    refreshIcons();
+    attachImageFallbacks(elements.projectFeed);
+    loadRankingPreviews();
     observeRankingEnd(board.projects.length);
 }
 
 function rankingCard(project, index) {
+    const preview = projectPreviews.get(project.projectId);
+    if (preview) return projectCard(preview, index, {rank: project});
     return `
         <article class="project-card ranking-card" data-ranked-project="${escapeHtml(project.projectId)}">
-            ${project.imageUrl ? `<div class="project-image-wrap"><img class="project-image" loading="lazy" src="${escapeHtml(project.imageUrl)}" alt="${escapeHtml(project.projectName || project.projectId)}"><span class="project-number">TOP ${index + 1}</span></div>` : `<p class="ranking-position">TOP ${index + 1}</p>`}
+            ${project.imageUrl ? `<a class="project-image-wrap" href="#project-${escapeHtml(project.projectId)}" data-open-project="${escapeHtml(project.projectId)}" aria-label="查看作品详情"><img class="project-image" loading="lazy" src="${escapeHtml(project.imageUrl)}" alt="${escapeHtml(project.projectName || project.projectId)}"><span class="project-number">TOP ${index + 1}</span></a>` : `<p class="ranking-position">TOP ${index + 1}</p>`}
             <div class="project-body">
                 <div class="author-main">
                     ${project.avatarUrl ? `<img class="avatar" src="${escapeHtml(project.avatarUrl)}" alt="">` : ""}
                     <span class="author-name">${escapeHtml(project.nickname || project.userId)}</span>
                 </div>
                 <h2 class="project-title">${escapeHtml(project.projectName || project.projectId)}</h2>
-                <p class="ranking-heat">热度 <strong>${new Intl.NumberFormat("zh-CN", {maximumFractionDigits: 3}).format(project.heatScore)}</strong></p>
-                <div class="ranking-counts" aria-label="窗口内互动统计">
-                    <span>点赞 ${project.likeCount}</span><span>评论 ${project.commentCount}</span>
-                    <span>转发 ${project.shareCount}</span><span>关注 ${project.followCount}</span>
-                    <span>浏览 ${project.viewPageCount}</span>
-                </div>
+                ${rankingStats(project)}
+                <p class="project-description">${projectPreviews.has(project.projectId) ? "原作品已不可用，暂无互动预览" : "正在载入互动预览…"}</p>
             </div>
         </article>
     `;
 }
 
 const rankingEndObserver = new IntersectionObserver((entries) => {
+    if (document.querySelector("#project-detail").open) return;
     if (state.sort !== "heat" || !document.querySelector("#view-community").classList.contains("is-active")) return;
     if (!entries.some((entry) => entry.isIntersecting && entry.target.isConnected)) return;
     const board = rankings?.windows.find((window) => window.windowType === rankingWindow);
@@ -384,6 +564,9 @@ const rankingEndObserver = new IntersectionObserver((entries) => {
         .slice(shown, rankingVisible[rankingWindow])
         .map((project, index) => rankingCard(project, shown + index)).join(""));
     observeRankingEnd(board.projects.length);
+    refreshIcons();
+    attachImageFallbacks(elements.projectFeed);
+    loadRankingPreviews();
 }, {rootMargin: "300px"});
 
 function observeRankingEnd(total) {
@@ -405,6 +588,7 @@ async function loadRankings(force = false) {
     rankingRequest = (async () => {
         try {
             rankings = await api("/api/project-rankings");
+            resetPreviews(true);
             rankingFetchedAt = Date.now();
             rankingError = "";
         } catch (error) {
@@ -418,7 +602,8 @@ async function loadRankings(force = false) {
 }
 
 setInterval(() => {
-    if (state.sort === "heat" && document.querySelector("#view-community").classList.contains("is-active")) {
+    if (state.sort === "heat" && !document.querySelector("#project-detail").open &&
+            document.querySelector("#view-community").classList.contains("is-active")) {
         loadRankings(true);
     }
 }, 30000);
@@ -441,7 +626,7 @@ function fetchProjectPage(page) {
 
 // Pages are appended as the reader scrolls; the feed holds 20,000 projects, so never request them all.
 async function loadMoreProjects() {
-    if (state.sort !== "latest" || !state.hasMore || state.loadingMore) return;
+    if (state.sort !== "latest" || !state.hasMore || state.loadingMore || document.querySelector("#project-detail").open) return;
     const request = feedRequest;
     state.loadingMore = true;
     try {
@@ -580,6 +765,7 @@ function selectAsset(assetId) {
 
 async function selectUser(userId) {
     state.currentUserId = userId;
+    resetPreviews();
     localStorage.setItem("water.currentUserId", userId);
     updateCurrentUserControl();
     renderUsers();
@@ -592,14 +778,15 @@ async function toggleLike(projectId, button) {
     button.disabled = true;
     try {
         const result = await api(`/api/projects/${projectId}/likes`, {method: "POST"});
-        button.classList.toggle("is-active", result.active);
-        button.querySelector("span").textContent = result.count;
-        button.setAttribute("aria-label", result.active ? "取消点赞" : "点赞");
-        const project = state.projects.find((item) => item.id === projectId);
-        if (project) {
+        document.querySelectorAll(`[data-like-project="${projectId}"]`).forEach((item) => {
+            item.classList.toggle("is-active", result.active);
+            item.querySelector("span").textContent = result.count;
+            item.setAttribute("aria-label", result.active ? "取消点赞" : "点赞");
+        });
+        knownProjects().filter((project) => project.id === projectId).forEach((project) => {
             project.likedByMe = result.active;
             project.likeCount = result.count;
-        }
+        });
     } catch (error) {
         toast(error.message, true);
     } finally {
@@ -609,9 +796,11 @@ async function toggleLike(projectId, button) {
 
 async function toggleFollow(userId, projectId) {
     if (!requireUser()) return;
+    const buttons = document.querySelectorAll(`[data-follow-user="${userId}"]`);
+    buttons.forEach((button) => { button.disabled = true; });
     try {
         const result = await api(`/api/users/${userId}/follow?projectId=${encodeURIComponent(projectId)}`, {method: "POST"});
-        state.projects.forEach((project) => {
+        knownProjects().forEach((project) => {
             if (project.author.id === userId) project.author.followedByMe = result.active;
         });
         document.querySelectorAll(`[data-follow-user="${userId}"]`).forEach((button) => {
@@ -621,23 +810,33 @@ async function toggleFollow(userId, projectId) {
         toast(result.message);
     } catch (error) {
         toast(error.message, true);
+    } finally {
+        buttons.forEach((button) => { button.disabled = false; });
     }
 }
 
 async function shareProject(projectId, button) {
     if (!requireUser()) return;
+    button.disabled = true;
     try {
         const result = await api(`/api/projects/${projectId}/shares`, {method: "POST"});
-        button.querySelector("span").textContent = result.count;
+        knownProjects().filter((project) => project.id === projectId).forEach((project) => { project.shareCount = result.count; });
+        document.querySelectorAll(`[data-share-project="${projectId}"] span`).forEach((span) => { span.textContent = result.count; });
         const url = `${location.origin}${location.pathname}#project-${projectId}`;
         if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(url);
-            toast("作品链接已复制");
+            try {
+                await navigator.clipboard.writeText(url);
+                toast("作品链接已复制");
+            } catch {
+                toast("分享已记录，当前浏览器未允许复制链接");
+            }
         } else {
             toast("分享已记录");
         }
     } catch (error) {
         toast(error.message, true);
+    } finally {
+        button.disabled = false;
     }
 }
 
@@ -645,7 +844,7 @@ async function deleteComment(projectId, commentId) {
     if (!requireUser()) return;
     try {
         await api(`/api/projects/${projectId}/comments/${commentId}`, {method: "DELETE"});
-        await loadProjects();
+        await refreshProject(projectId);
         toast("评论已删除");
     } catch (error) {
         toast(error.message, true);
@@ -666,7 +865,7 @@ async function submitComment(form) {
             body: JSON.stringify({content})
         });
         input.value = "";
-        await loadProjects();
+        await refreshProject(projectId);
         toast("评论已发布");
     } catch (error) {
         toast(error.message, true);
@@ -705,6 +904,22 @@ async function submitProject(event) {
 }
 
 document.addEventListener("click", (event) => {
+    const openProject = event.target.closest("[data-open-project]");
+    if (openProject) {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        openProjectDetail(openProject.dataset.openProject);
+        return;
+    }
+    if (event.target.closest("[data-close-detail]")) {
+        closeProjectDetail();
+        return;
+    }
+    const moreComments = event.target.closest("[data-more-comments]");
+    if (moreComments) {
+        loadMoreComments(moreComments);
+        return;
+    }
     const tab = event.target.closest("[data-view]");
     if (tab) {
         showView(tab.dataset.view);
@@ -777,7 +992,7 @@ document.addEventListener("click", (event) => {
 
     const commentButton = event.target.closest("[data-focus-comment]");
     if (commentButton) {
-        const input = document.querySelector(`[data-comment-form="${commentButton.dataset.focusComment}"] input`);
+        const input = commentButton.closest("[data-project-card]").querySelector("[data-comment-form] input");
         input?.focus();
         return;
     }
@@ -814,6 +1029,23 @@ elements.publishDialog.addEventListener("click", (event) => {
     }
 });
 
+const detailDialog = document.querySelector("#project-detail");
+detailDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeProjectDetail();
+});
+detailDialog.addEventListener("click", (event) => {
+    if (event.target === detailDialog) {
+        const bounds = detailDialog.getBoundingClientRect();
+        if (event.clientX < bounds.left || event.clientX > bounds.right ||
+                event.clientY < bounds.top || event.clientY > bounds.bottom) closeProjectDetail();
+    }
+});
+window.addEventListener("hashchange", () => {
+    if (location.hash.startsWith("#project-")) openProjectDetail(location.hash.slice(9), false);
+    else closeProjectDetail(false);
+});
+
 async function init() {
     showView("community");
     document.querySelector("#hero").style.backgroundImage = 'url("/generated/hero-optimized.jpg")';
@@ -831,6 +1063,7 @@ async function init() {
         renderAssets();
         updateCurrentUserControl();
         refreshIcons();
+        if (location.hash.startsWith("#project-")) openProjectDetail(location.hash.slice(9), false);
     } catch (error) {
         elements.usersGrid.innerHTML = `<div class="empty-state"><div><h2>连接没有准备好</h2><p>${escapeHtml(error.message)}</p></div></div>`;
         toast(error.message, true);

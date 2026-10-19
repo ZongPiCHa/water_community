@@ -70,6 +70,29 @@ class CommunityService {
     }
 
     @Transactional(readOnly = true)
+    ProjectResponse project(String viewerId, String projectId) {
+        return toProjectResponse(requireProject(projectId), viewerId);
+    }
+
+    @Transactional(readOnly = true)
+    List<ProjectResponse> previews(String viewerId, List<String> ids) {
+        if (ids.isEmpty() || ids.size() > 50 || ids.stream().anyMatch(id -> !id.matches("[a-zA-Z0-9_-]{1,64}"))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "每次请提供 1 至 50 个有效作品 ID");
+        }
+        return projectRepository.findByIdIn(ids).stream()
+                .map(project -> toProjectResponse(project, viewerId))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    CommentPageResponse comments(String projectId, int page, int size) {
+        requireProject(projectId);
+        var comments = commentRepository.findByProjectIdOrderByCreatedAtDescIdDesc(
+                projectId, PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 50)));
+        return new CommentPageResponse(comments.stream().map(this::toCommentResponse).toList(), comments.hasNext());
+    }
+
+    @Transactional(readOnly = true)
     SimulationCatalog simulationCatalog() {
         return new SimulationCatalog(
                 pairs(userRepository.findAllIdsWithNickname()),

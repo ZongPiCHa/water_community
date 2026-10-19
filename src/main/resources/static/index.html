@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#f7f7f3">
     <meta name="description" content="水集，一个用于模拟创作、分享与互动的灵感社区。">
     <title>水集 · 创作社区</title>
-    <link rel="stylesheet" href="/styles.css?v=ranking-db-time">
+    <link rel="stylesheet" href="/styles.css?v=project-detail">
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
-    <script src="/app.js?v=ranking-db-time" defer></script>
+    <script src="/app.js?v=project-detail" defer></script>
 </head>
 <body>
 <header class="topbar">
@@ -134,6 +134,16 @@
             </aside>
         </div>
     </form>
+</dialog>
+
+<dialog class="project-detail" id="project-detail" aria-labelledby="detail-title">
+    <header class="dialog-header">
+        <h2 id="detail-title">作品详情</h2>
+        <button class="icon-button" type="button" data-close-detail aria-label="返回列表" title="返回列表" autofocus>
+            <i data-lucide="x"></i>
+        </button>
+    </header>
+    <div id="detail-content" aria-live="polite"></div>
 </dialog>
 
 <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
